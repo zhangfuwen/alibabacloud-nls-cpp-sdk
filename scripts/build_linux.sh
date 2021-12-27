@@ -1,5 +1,10 @@
 #!/bin/bash -e
 
+echo "Command:"
+echo "./scripts/build_linux.sh <all or incr> <debug or release>"
+echo "eg: ./scripts/build_linux.sh all debug"
+
+
 ALL_FLAG=$1
 DEBUG_FLAG=$2
 if [ $# == 0 ]; then
@@ -72,6 +77,7 @@ ar x $build_folder/nlsCppSdk/libalibabacloud-idst-speech.a
 ar x liblog4cpp.a
 ar x libjsoncpp.a
 ar x libuuid.a
+ar x libogg.a
 ar x libopus.a
 ar x libevent_core.a
 ar x libevent_extra.a

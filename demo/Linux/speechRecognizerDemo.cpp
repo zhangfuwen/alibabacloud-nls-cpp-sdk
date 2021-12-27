@@ -62,6 +62,8 @@ struct ParamStruct {
   uint64_t failedConsumed;    /*failed事件次数*/
   uint64_t requestConsumed;   /*发起请求次数*/
 
+  uint64_t sendConsumed;      /*sendAudio调用次数*/
+
   uint64_t startTotalValue;   /*所有started完成时间总和*/
   uint64_t startAveValue;     /*started完成平均时间*/
   uint64_t startMaxValue;     /*调用start()到收到started事件最大用时*/
@@ -76,6 +78,8 @@ struct ParamStruct {
   uint64_t closeAveValue;     /*start()到closed事件的平均用时*/
   uint64_t closeMaxValue;     /*start()到closed事件的最大用时*/
   uint64_t closeMinValue;     /*start()到closed事件的最小用时*/
+
+  uint64_t sendTotalValue;    /*单线程调用sendAudio总耗时*/
 
   uint64_t s50Value;          /*start()到started用时50ms以内*/
   uint64_t s100Value;         /*start()到started用时100ms以内*/
@@ -143,7 +147,7 @@ volatile static bool global_run = false;
 volatile static bool auto_close_run = false;
 static std::map<unsigned long, struct ParamStatistics *> g_statistics;
 static pthread_mutex_t params_mtx;
-static int frame_size = FRAME_20MS;
+static int frame_size = FRAME_100MS;
 static int encoder_type = ENCODER_NONE;
 static int logLevel = AlibabaNls::LogDebug; /* 0:为关闭log */
 static int run_cnt = 0;
@@ -355,9 +359,8 @@ int generateToken(std::string akId, std::string akSecret,
  * @return 返回sendAudio之后需要sleep的时间
  * @note 对于8k pcm 编码数据, 16位采样，建议每发送1600字节 sleep 100 ms.
          对于16k pcm 编码数据, 16位采样，建议每发送3200字节 sleep 100 ms.
-         对于其它编码格式的数据, 用户根据压缩比, 自行估算, 
-         比如压缩比为10:1的 16k opus,
-         需要每发送3200/10=320 sleep 100ms.
+         对于其它编码格式(OPUS)的数据, 由于解码后传递给SDK的仍然是PCM编码数据,
+         按照SDK OPUS/OPU 数据长度限制, 需要每次发送640字节 sleep 20ms.
  */
 unsigned int getSendAudioSleepTime(const int dataSize,
                                    const int sampleRate,
@@ -707,6 +710,9 @@ void* pthreadFunction(void* arg) {
   cbParam->userId = pthread_self();
   strcpy(cbParam->userInfo, "User.");
 
+  uint64_t sendAudio_us = 0;
+  uint32_t sendAudio_cnt = 0;
+
   while (global_run) {
     /*
      * 1: 创建一句话识别SpeechRecognizerRequest对象
@@ -791,6 +797,7 @@ void* pthreadFunction(void* arg) {
     vectorStartStore(pthread_self());
     std::cout << "start ->" << std::endl;
     struct timespec outtime;
+    struct timeval now;
     gettimeofday(&(cbParam->startTv), NULL);
     int ret = request->start();
     run_cnt++;
@@ -801,11 +808,16 @@ void* pthreadFunction(void* arg) {
     } else {
       //等待started事件返回, 在发送
       std::cout << "wait started callback." << std::endl;
+      gettimeofday(&now, NULL);
+      outtime.tv_sec = now.tv_sec + 10;
+      outtime.tv_nsec = now.tv_usec * 1000;
       pthread_mutex_lock(&(cbParam->mtxWord));
       pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord), &outtime);
       pthread_mutex_unlock(&(cbParam->mtxWord));
     }
 
+    sendAudio_us = 0;
+    sendAudio_cnt = 0;
     while (!fs.eof()) {
       uint8_t data[frame_size];
       memset(data, 0, frame_size);
@@ -816,10 +828,14 @@ void* pthreadFunction(void* arg) {
         continue;
       }
 
+      struct timeval tv0, tv1;
+      gettimeofday(&tv0, NULL);
       /*
-       * 3: 发送音频数据. sendAudio为异步操作, 返回-1表示发送失败, 需要停止发送.
-       *    若希望用省流量的opus格式上传音频数据, 则第三参数传入ENCODER_OPUS
-       *    ENCODER_OPU模式时,nlen必须为640
+       * 3: 发送音频数据: sendAudio为异步操作, 返回负值表示发送失败, 需要停止发送;
+       *    返回0 为成功. 
+       *    notice : 返回值非成功发送字节数.
+       *    若希望用省流量的opus格式上传音频数据, 则第三参数传入ENCODER_OPU
+       *    ENCODER_OPU/ENCODER_OPUS模式时,nlen必须为640
        */
       ret = request->sendAudio(data, nlen, (ENCODER_TYPE)encoder_type);
       if (ret < 0) {
@@ -827,6 +843,10 @@ void* pthreadFunction(void* arg) {
         std::cout << "send data fail(" << ret << ")." << std::endl;
         break;
       }
+      gettimeofday(&tv1, NULL);
+      uint64_t tmp_us = (tv1.tv_sec - tv0.tv_sec) * 1000000 + tv1.tv_usec - tv0.tv_usec;
+      sendAudio_us += tmp_us;
+      sendAudio_cnt++;
 
       /*
        *语音数据发送控制：
@@ -841,14 +861,23 @@ void* pthreadFunction(void* arg) {
       /*
        * 4: 语音数据发送延时控制
        */
-      usleep(sleepMs * 1000);
+      if (sleepMs * 1000 - tmp_us > 0) {
+        usleep(sleepMs * 1000 - tmp_us);
+      }
     }  // while
 
     /*
      * 6: 通知云端数据发送结束.
      * stop()为异步操作.失败返回TaskFailed事件
      */
+    tst->sendConsumed += sendAudio_cnt;
+    tst->sendTotalValue += sendAudio_us;
+    if (sendAudio_cnt > 0) {
+      std::cout << "sendAudio ave: " << (sendAudio_us / sendAudio_cnt)
+                << "us" << std::endl;
+    }
     std::cout << "stop ->" << std::endl;
+    // stop()后会收到所有回调，若想立即停止则调用cancel()
     ret = request->stop();
     std::cout << "stop done" << "\n" << std::endl;
 
@@ -857,8 +886,6 @@ void* pthreadFunction(void* arg) {
      */
     if (ret == 0) {
       std::cout << "wait closed callback." << std::endl;
-      struct timeval now;
-      struct timespec outtime;
       gettimeofday(&now, NULL);
       outtime.tv_sec = now.tv_sec + 10;
       outtime.tv_nsec = now.tv_usec * 1000;
@@ -891,6 +918,7 @@ void* pthreadFunction(void* arg) {
  * sdk多线程指一个音频数据源对应一个线程, 非一个音频数据对应多个线程.
  * 示例代码为同时开启threads个线程识别threads个文件;
  * 免费用户并发连接不能超过10个;
+ * notice: Linux高并发用户注意系统最大文件打开数限制, 详见README.md
  */
 #define AUDIO_FILE_NUMS 4
 #define AUDIO_FILE_NAME_LENGTH 32
@@ -997,12 +1025,18 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
   unsigned long long cMinTime = 0;
   unsigned long long cAveTime = 0;
 
+  unsigned long long sendTotalCount = 0;
+  unsigned long long sendTotalTime = 0;
+  unsigned long long sendAveTime = 0;
+
   for (int i = 0; i < threads; i ++) {
     sTotalCount += pa[i].startedConsumed;
     eTotalCount += pa[i].completedConsumed;
     fTotalCount += pa[i].failedConsumed;
     cTotalCount += pa[i].closeConsumed;
     rTotalCount += pa[i].requestConsumed;
+    sendTotalCount += pa[i].sendConsumed;
+    sendTotalTime += pa[i].sendTotalValue; // us, 所有线程sendAudio耗时总和
 
     //std::cout << "Closed:" << pa[i].closeConsumed << std::endl;
 
@@ -1062,6 +1096,9 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
   sAveTime /= threads;
   eAveTime /= threads;
   cAveTime /= threads;
+  if (sendTotalCount > 0) {
+    sendAveTime = sendTotalTime / sendTotalCount;
+  }
 
   for (int i = 0; i < threads; i ++) {
     std::cout << "No." << i
@@ -1114,6 +1151,10 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
   std::cout << "Max completed time: " << eMaxTime << " ms" << std::endl;
   std::cout << "Min completed time: " << eMinTime << " ms" << std::endl;
   std::cout << "Ave completed time: " << eAveTime << " ms" << std::endl;
+
+  std::cout << "\n ------------------- \n" << std::endl;
+
+  std::cout << "Ave sendAudio time: " << sendAveTime << " us" << std::endl;
 
   std::cout << "\n ------------------- \n" << std::endl;
 
@@ -1228,14 +1269,14 @@ int main(int argc, char* argv[]) {
   // 此处表示SDK日志输出至log-recognizer.txt, LogDebug表示输出所有级别日志
   if (logLevel > 0) {
     int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
-        "log-recognizer", logLevel, 400); //"log-recognizer"
+        "log-recognizer", logLevel, 400, 50); //"log-recognizer"
     if (-1 == ret) {
       std::cout << "set log failed." << std::endl;
       return -1;
     }
   }
 
-  // 启动工作线程
+  // 启动工作线程, 在创建请求和启动前必须调用此函数
   // 入参为负时, 启动当前系统中可用的核数
   AlibabaNls::NlsClient::getInstance()->startWorkThread(-1);
 

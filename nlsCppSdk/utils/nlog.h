@@ -17,7 +17,11 @@
 #ifndef NLS_SDK_LOG_H
 #define NLS_SDK_LOG_H
 
+#if defined(_MSC_VER)
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
 
 namespace AlibabaNls {
 namespace utility {
@@ -27,7 +31,7 @@ class NlsLog {
 public:
   static NlsLog* _logInstance;
   static void destroyLogInstance();
-  void logConfig(const char* name, int level, size_t fileSize);
+  void logConfig(const char* name, int level, size_t fileSize, size_t fileNum);
 
   void logVerbose(const char* function, int line, const char * format, ...);
   void logDebug(const char* function, int line, const char * format, ...);
@@ -42,7 +46,11 @@ private:
 
   unsigned long pthreadSelfId();
 
+#if defined(_MSC_VER)
+  static HANDLE _mtxLog;
+#else
   static pthread_mutex_t _mtxLog;
+#endif
 
   int _logLevel;
   bool _isStdout;

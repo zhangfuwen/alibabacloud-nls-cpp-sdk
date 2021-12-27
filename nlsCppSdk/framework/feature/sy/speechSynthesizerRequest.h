@@ -200,7 +200,7 @@ class NLS_SDK_CLIENT_EXPORT SpeechSynthesizerRequest : public INlsRequest {
   int start();
 
   /**
-   * @brief 会与服务端确认关闭，正常停止SpeechSynthesizerRequest链接操作
+   * @brief 此接口废弃，调用与否都会正常停止SpeechSynthesizerRequest链接操作
    * @note 异步操作。失败返回TaskFailed。
    * @return 成功则返回0，否则返回-1
    */
@@ -246,12 +246,13 @@ class NLS_SDK_CLIENT_EXPORT SpeechSynthesizerRequest : public INlsRequest {
    * @param _event	回调方法
    * @param para	用户传入参数, 默认为NULL
    * @return void
+   * @notice 切不可在回调中进行阻塞操作，只可做音频数据转存，否则整个流程将会有较大延迟
    */
   void setOnBinaryDataReceived(NlsCallbackMethod _event, void* para = NULL);
 
   /**
-   * @brief 设置语音合成二进制音频数据接收回调函数
-   * @note 接收到服务端发送的二进制音频数据时，sdk内部线程上报该回调函数.
+   * @brief 设置文本对应的日志信息接收回调函数
+   * @note 接收到服务端送回文本对应的日志信息，增量返回对应的字幕信息时，sdk内部线程上报该回调函数.
    * @param _event	回调方法
    * @param para	用户传入参数, 默认为NULL
    * @return void

@@ -466,12 +466,14 @@ void OnSynthesisChannelClosed(AlibabaNls::NlsEvent* cbEvent, void* cbParam) {
  * @param cbEvent 回调事件结构, 详见nlsEvent.h
  * @param cbParam 回调自定义参数，默认为NULL, 可以根据需求自定义参数
  * @return
+ * @notice 此处切记不可做block操作,只可做音频数据转存. 若在此回调中做过多操作,
+ *         会阻塞后续的数据回调和completed事件回调.
  */
 void OnBinaryDataRecved(AlibabaNls::NlsEvent* cbEvent, void* cbParam) {
   ParamCallBack* tmpParam = (ParamCallBack*)cbParam;
 
   std::vector<unsigned char> data = cbEvent->getBinaryData(); // getBinaryData() 获取文本合成的二进制音频数据
-#if 0
+#if 1
   std::cout << "OnBinaryDataRecved: "
     << "status code: " << cbEvent->getStatusCode()  // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
     << ", taskId: " << cbEvent->getTaskId()        // 当前任务的task id，方便定位问题，建议输出
@@ -584,7 +586,7 @@ void* pthreadFunc(void* arg) {
     }
 
     /*
-     * 2: start()为异步操作。成功返回BinaryRecv事件。失败返回TaskFailed事件。
+     * 2: start()为异步操作。成功则开始返回BinaryRecv事件。失败返回TaskFailed事件。
      */
     gettimeofday(&(cbParam->startTv), NULL);
     int ret = request->start();
@@ -606,8 +608,10 @@ void* pthreadFunc(void* arg) {
 
     /*
      * 6: 通知云端数据发送结束.
-     * stop()为异步操作.失败返回TaskFailed事件。
+     * stop()为无意义接口，调用与否都会跑完全程.
+     * cancel()立即停止工作, 且不会有回调返回, 失败返回TaskFailed事件。
      */
+//    ret = request->cancel();
     ret = request->stop();
 
     /*
@@ -930,14 +934,15 @@ int main(int argc, char* argv[]) {
   // 根据需要设置SDK输出日志, 可选. 此处表示SDK日志输出至log-Synthesizer.txt， LogDebug表示输出所有级别日志
 #ifdef LOG_TRIGGER
   int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
-      "log-synthesizer", AlibabaNls::LogDebug, 400);
+      "log-synthesizer", AlibabaNls::LogDebug, 400, 50);
   if (-1 == ret) {
     std::cout << "set log failed." << std::endl;
     return -1;
   }
 #endif
 
-  //启动工作线程
+  // 启动工作线程, 在创建请求和启动前必须调用此函数
+  // 入参为负时, 启动当前系统中可用的核数
   AlibabaNls::NlsClient::getInstance()->startWorkThread(-1);
 
   // 合成多个文本

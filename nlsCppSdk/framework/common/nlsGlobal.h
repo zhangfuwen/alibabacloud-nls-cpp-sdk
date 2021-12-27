@@ -17,7 +17,7 @@
 #ifndef NLS_SDK_GLOBAL_H
 #define NLS_SDK_GLOBAL_H
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
 
   #define NLS_SDK_DECL_EXPORT __declspec(dllexport)
   #define NLS_SDK_DECL_IMPORT __declspec(dllimport)

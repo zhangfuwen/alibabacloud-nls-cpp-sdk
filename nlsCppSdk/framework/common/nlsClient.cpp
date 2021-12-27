@@ -31,10 +31,19 @@ namespace AlibabaNls {
 NlsClient* NlsClient::_instance = NULL;  //new NlsClient();
 bool NlsClient::_isInitializeSSL = false;
 bool NlsClient::_isInitializeThread = false;
+
+#if defined(_MSC_VER)
+HANDLE NlsClient::_mtx = CreateMutex(NULL, FALSE, NULL);
+#else
 pthread_mutex_t NlsClient::_mtx = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 NlsClient* NlsClient::getInstance(bool sslInitial) {
+#if defined(_MSC_VER)
+  WaitForSingleObject(_mtx, INFINITE);
+#else
   pthread_mutex_lock(&_mtx);
+#endif
 
   if (NULL == _instance) {
     //init openssl
@@ -49,14 +58,22 @@ NlsClient* NlsClient::getInstance(bool sslInitial) {
     _instance = new NlsClient();
   }
 
+#if defined(_WIN32)
+  ReleaseMutex(_mtx);
+#else
   pthread_mutex_unlock(&_mtx);
+#endif
   return _instance;
 }
 
 /*
  */
 void NlsClient::releaseInstance() {
+#if defined(_MSC_VER)
+  WaitForSingleObject(_mtx, INFINITE);
+#else
   pthread_mutex_lock(&_mtx);
+#endif
 
   if (_instance) {
     LOG_DEBUG("release NlsClient.");
@@ -77,7 +94,11 @@ void NlsClient::releaseInstance() {
     _instance = NULL;
   }
 
+#if defined(_WIN32)
+  ReleaseMutex(_mtx);
+#else
   pthread_mutex_unlock(&_mtx);
+#endif
 }
 
 NlsClient::NlsClient() {}
@@ -88,19 +109,28 @@ const char* NlsClient::getVersion()	{
 }
 
 void NlsClient::startWorkThread(int threadsNumber) {
+#if defined(_MSC_VER)
+  WaitForSingleObject(_mtx, INFINITE);
+#else
   pthread_mutex_lock(&_mtx);
+#endif
 
   if (!_isInitializeThread) {
     NlsEventNetWork::initEventNetWork(threadsNumber);
     _isInitializeThread = true;
   }
 
+#if defined(_WIN32)
+  ReleaseMutex(_mtx);
+#else
   pthread_mutex_unlock(&_mtx);
+#endif
 }
 
 int NlsClient::setLogConfig(const char* logOutputFile,
                             const LogLevel logLevel,
-                            unsigned int logFileSize) {
+                            unsigned int logFileSize,
+                            unsigned int logFileNum) {
   if ((logLevel < 1) || (logLevel > 4)) {
     return -1;
   }
@@ -109,7 +139,8 @@ int NlsClient::setLogConfig(const char* logOutputFile,
     return -1;
   }
 
-  utility::NlsLog::_logInstance->logConfig(logOutputFile, logLevel, logFileSize);
+  utility::NlsLog::_logInstance->logConfig(
+      logOutputFile, logLevel, logFileSize, logFileNum);
 
 	return 0;
 }

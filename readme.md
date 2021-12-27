@@ -38,48 +38,63 @@ C++ SDK 提供一句话识别、实时语音识别、语音合成等服务。可
 
 生成物NlsSdk3.X_LINUX 目录说明:  
 NlsSdk3.X_LINUX  
-├── bin  
-│   ├── daDemo         对话Demo binary文件  
-│   ├── srDemo         一句话识别Demo binary文件  
-│   ├── stDemo         实时识别Demo binary文件  
+│── bin  
+│   │── daDemo         对话Demo binary文件  
+│   │── srDemo         一句话识别Demo binary文件  
+│   │── stDemo         实时识别Demo binary文件  
 │   └── syDemo         音频转写Demo binary文件  
-├── demo  
-│   ├── build_linux_demo.sh          一键编译当前Demo  
-│   ├── dialogAssistantDemo.cpp      对话Demo源码  
-│   ├── speechRecognizerDemo.cpp     一句话识别Demo源码  
-│   ├── speechSynthesizerDemo.cpp    音频转写Demo源码  
+│── demo  
+│   │── build_linux_demo.sh          一键编译当前Demo  
+│   │── dialogAssistantDemo.cpp      对话Demo源码  
+│   │── speechRecognizerDemo.cpp     一句话识别Demo源码  
+│   │── speechSynthesizerDemo.cpp    音频转写Demo源码  
 │   └── speechTranscriberDemo.cpp    实时识别Demo源码  
-│   ├── resource            测试资源（测试音频文件）  
+│   │── resource            测试资源（测试音频文件）  
 │   │   └── audio  
 │   │       ├── test0.wav  
 │   │       ├── test1.wav  
 │   │       ├── test2.wav  
 │   │       └── test3.wav  
-├── include                 接口头文件  
-│   ├── iNlsRequest.h  
-│   ├── nlsClient.h  
-│   ├── nlsEvent.h  
-│   ├── nlsGlobal.h  
-│   ├── nlsToken.h  
-│   ├── dialogAssistantRequest.h  
-│   ├── speechRecognizerRequest.h  
-│   ├── speechSynthesizerRequest.h  
+│── include                 接口头文件  
+│   │── iNlsRequest.h  
+│   │── nlsClient.h  
+│   │── nlsEvent.h  
+│   │── nlsGlobal.h  
+│   │── nlsToken.h  
+│   │── dialogAssistantRequest.h  
+│   │── speechRecognizerRequest.h  
+│   │── speechSynthesizerRequest.h  
 │   └── speechTranscriberRequest.h  
-├── lib                     库（原libalibabacloud-idst-common.so已合并入libalibabacloud-idst-speech.so）  
-│   ├── libalibabacloud-idst-speech.a  
+│── lib                     库（原libalibabacloud-idst-common.so已合并入libalibabacloud-idst-speech.so）  
+│   │── libalibabacloud-idst-speech.a  
 │   └── libalibabacloud-idst-speech.so  
-├── README.md  
+│── README.md  
 └── version                 版本说明  
 
 注意：
 1. linux环境下，运行环境最低要求：Glibc 2.5及以上， Gcc4及以上。  
 2. linux环境下，高并发运行，注意 系统打开文件数限制，可通过ulimit -a查看当前允许的打开文件数限制。比如预设最大并发数1000，建议将open files限制设置大于1000，ulimit -n 2000。否则会出现connect failed错误。  
 
-### 嵌入式(eg. arm-linux等)平台编译及说明：
-> 后续将提供常见arm编译范例，客户可根据实际需求修改工具链完成交叉编译。  
+### 嵌入式(eg. arm-linux等)平台编译及说明：  
+> 请自行交叉编译...  
 
-### Windows平台编译及说明：
-> 开发中...  
+### Android平台编译及说明：  
+支持arm64-v8a、armeabi、armeabi-v7a、x86、x86_64  
+编译指令：  
+> ./scripts/build_android.sh                         默认增量编译，生成arm64-v8a架构Debug版本
+> ./scripts/build_android.sh all debug arm64-v8a     全量编译，生成arm64-v8a架构Debug版本
+> ./scripts/build_android.sh incr debug arm64-v8a    增量编译，生成arm64-v8a架构Debug版本
+> ./scripts/build_android.sh all release arm64-v8a   全量编译，生成arm64-v8a架构Release版本
+> ./scripts/build_android.sh incr release arm64-v8a  增量编译，生成arm64-v8a架构Release版本
 
+### Windows平台编译及说明：  
+#### 一、简单编译方式（推荐）
+此方式使用已经编译好的第三方库进行编译
+> 1. 运行 build_windows_64_prebuild.bat    此批处理将第三方库进行解压
+> 2. 使用vs打开nlsCppSdk.sln，直接编译。现支持x64_debug和x64_Release
+> 3. 运行 build_windows_64_package.bat     此批处理将编译成果物打包zip，路径为NlsCppSdk\build\install\NlsSdk3.X_win64.zip
 
+#### 二、自动化编译方式
+此方法可能由于vs版本或windows平台差异问题，无法顺利运行
+>  运行 build_windows_64.bat
 
