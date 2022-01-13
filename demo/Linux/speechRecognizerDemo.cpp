@@ -30,6 +30,7 @@
 #include "nlsEvent.h"
 #include "nlsToken.h"
 #include "speechRecognizerRequest.h"
+#include "profile_scan.h"
 
 #define SELF_TESTING_TRIGGER
 #define FRAME_20MS 640
@@ -144,7 +145,6 @@ static int loop_timeout =  LOOP_TIMEOUT;
 
 long g_expireTime = -1;
 volatile static bool global_run = false;
-volatile static bool auto_close_run = false;
 static std::map<unsigned long, struct ParamStatistics *> g_statistics;
 static pthread_mutex_t params_mtx;
 static int frame_size = FRAME_100MS;
@@ -153,6 +153,10 @@ static int logLevel = AlibabaNls::LogDebug; /* 0:为关闭log */
 static int run_cnt = 0;
 static int run_success = 0;
 static int run_fail = 0;
+
+static int profile_scan = -1;
+static int cur_profile_scan = -1;
+static PROFILE_INFO * g_sys_info = NULL;
 
 void signal_handler_int(int signo) {
   std::cout << "\nget interrupt mesg\n" << std::endl;
@@ -666,8 +670,41 @@ void* autoCloseFunc(void* arg) {
   timeout = loop_timeout;
   while (timeout-- > 0 && global_run) {
     usleep(1000 * 1000);
+
+    if (g_sys_info) {
+      int cur = -1;
+      if (cur_profile_scan == -1) {
+        cur = 0;
+      } else if (cur_profile_scan == 0) {
+        continue;
+      } else {
+        cur = cur_profile_scan;
+      }
+      PROFILE_INFO cur_sys_info;
+      get_profile_info("srDemo", &cur_sys_info);
+      std::cout << cur << ": cur_usr_name: " << cur_sys_info.usr_name
+        << " CPU: " << cur_sys_info.ave_cpu_percent << "%"
+        << " MEM: " << cur_sys_info.ave_mem_percent << "%"
+        << std::endl;
+
+      PROFILE_INFO *cur_info = &(g_sys_info[cur]);
+      if (cur_info->ave_cpu_percent == 0) {
+        strcpy(cur_info->usr_name, cur_sys_info.usr_name);
+        cur_info->ave_cpu_percent = cur_sys_info.ave_cpu_percent;
+        cur_info->ave_mem_percent = cur_sys_info.ave_mem_percent;
+        cur_info->eAveTime = 0;
+      } else {
+        if (cur_info->ave_cpu_percent < cur_sys_info.ave_cpu_percent) {
+          cur_info->ave_cpu_percent = cur_sys_info.ave_cpu_percent;
+        }
+        if (cur_info->ave_mem_percent < cur_sys_info.ave_mem_percent) {
+          cur_info->ave_mem_percent = cur_sys_info.ave_mem_percent;
+        }
+      }
+    }
   }
   global_run = false;
+  std::cout << "autoCloseFunc exit..." << pthread_self() << std::endl;
 }
 
 void* pthreadFunction(void* arg) {
@@ -1096,6 +1133,19 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
   sAveTime /= threads;
   eAveTime /= threads;
   cAveTime /= threads;
+
+  int cur = -1;
+  if (cur_profile_scan == -1) {
+    cur = 0;
+  } else if (cur_profile_scan == 0) {
+  } else {
+    cur = cur_profile_scan;
+  }
+  if (g_sys_info && cur >= 0 && cur_profile_scan != 0) {
+    PROFILE_INFO *cur_info = &(g_sys_info[cur]);
+    cur_info->eAveTime = eAveTime;
+  }
+
   if (sendTotalCount > 0) {
     sendAveTime = sendTotalTime / sendTotalCount;
   }
@@ -1124,18 +1174,18 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
 
   std::cout << "\n ------------------- \n" << std::endl;
 
-  std::cout << "Total. " << std::endl;
-  std::cout << "Request: " << rTotalCount << std::endl;
-  std::cout << "Started: " << sTotalCount << std::endl;
-  std::cout << "Completed: " << eTotalCount << std::endl;
-  std::cout << "Failed: " << fTotalCount << std::endl;
-  std::cout << "Closed: " << cTotalCount << std::endl;
+  std::cout << "Final Total. " << std::endl;
+  std::cout << "Final Request: " << rTotalCount << std::endl;
+  std::cout << "Final Started: " << sTotalCount << std::endl;
+  std::cout << "Final Completed: " << eTotalCount << std::endl;
+  std::cout << "Final Failed: " << fTotalCount << std::endl;
+  std::cout << "Final Closed: " << cTotalCount << std::endl;
 
   std::cout << "\n ------------------- \n" << std::endl;
 
-  std::cout << "Max started time: " << sMaxTime << " ms" << std::endl;
-  std::cout << "Min started time: " << sMinTime << " ms" << std::endl;
-  std::cout << "Ave started time: " << sAveTime << " ms" << std::endl;
+  std::cout << "Final Max started time: " << sMaxTime << " ms" << std::endl;
+  std::cout << "Final Min started time: " << sMinTime << " ms" << std::endl;
+  std::cout << "Final Ave started time: " << sAveTime << " ms" << std::endl;
 
   std::cout << "\n ------------------- \n" << std::endl;
 
@@ -1148,9 +1198,9 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
 
   std::cout << "\n ------------------- \n" << std::endl;
 
-  std::cout << "Max completed time: " << eMaxTime << " ms" << std::endl;
-  std::cout << "Min completed time: " << eMinTime << " ms" << std::endl;
-  std::cout << "Ave completed time: " << eAveTime << " ms" << std::endl;
+  std::cout << "Final Max completed time: " << eMaxTime << " ms" << std::endl;
+  std::cout << "Final Min completed time: " << eMinTime << " ms" << std::endl;
+  std::cout << "Final Ave completed time: " << eAveTime << " ms" << std::endl;
 
   std::cout << "\n ------------------- \n" << std::endl;
 
@@ -1164,6 +1214,9 @@ int speechRecognizerMultFile(const char* appkey, int threads) {
 
   std::cout << "\n ------------------- \n" << std::endl;
 
+  usleep(2 * 1000 * 1000);
+
+  std::cout << "speechRecognizerMultFile exit..." << std::endl;
   return 0;
 }
 
@@ -1223,6 +1276,10 @@ int parse_argv(int argc, char* argv[]) {
       index++;
       if (invalied_argv(index, argc)) return 1;
       logLevel = atoi(argv[index]);
+    } else if (!strcmp(argv[index], "--NlsScan")) {
+      index++;
+      if (invalied_argv(index, argc)) return 1;
+      profile_scan = atoi(argv[index]);
     }
     index++;
   }
@@ -1265,72 +1322,98 @@ int main(int argc, char* argv[]) {
 
   pthread_mutex_init(&params_mtx, NULL);
 
-  // 根据需要设置SDK输出日志, 可选.
-  // 此处表示SDK日志输出至log-recognizer.txt, LogDebug表示输出所有级别日志
-  if (logLevel > 0) {
-    int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
-        "log-recognizer", logLevel, 400, 50); //"log-recognizer"
-    if (-1 == ret) {
-      std::cout << "set log failed." << std::endl;
-      return -1;
-    }
+  if (profile_scan > 0) {
+    g_sys_info = new PROFILE_INFO[profile_scan + 1];
+    memset(g_sys_info, 0, sizeof(PROFILE_INFO) * (profile_scan + 1));
+  } else {
+    profile_scan = 0;
   }
 
-  // 启动工作线程, 在创建请求和启动前必须调用此函数
-  // 入参为负时, 启动当前系统中可用的核数
-  AlibabaNls::NlsClient::getInstance()->startWorkThread(-1);
+  for (cur_profile_scan = -1;
+       cur_profile_scan < profile_scan;
+       cur_profile_scan++) {
 
-  // 识别多个音频数据
-  speechRecognizerMultFile(g_appkey.c_str(), g_threads);
+    if (cur_profile_scan == 0) continue;
 
-  // 所有工作完成，进程退出前，释放nlsClient.
-  // 请注意, releaseInstance()非线程安全.
-  AlibabaNls::NlsClient::releaseInstance();
-
-  int size = g_statistics.size();
-  int run_count = 0;
-  int success_count = 0;
-  if (size > 0) {
-    std::map<unsigned long, struct ParamStatistics *>::iterator it;
-    std::cout << "\n" << std::endl;
-    pthread_mutex_lock(&params_mtx);
-    for (it = g_statistics.begin(); it != g_statistics.end(); ++it) {
-      run_count++;
-      if (it->second->success_flag) success_count++;
-
-      std::cout << "pid: " << it->first
-        << "; run_flag: " << it->second->running
-        << "; success_flag: " << it->second->success_flag
-        << "; audio_file: " << it->second->audio_ms << "ms "
-        << std::endl;
-      if (it->second->s_cnt > 0) {
-        std::cout << "average time: "
-          << (loop_timeout * 1000 / it->second->s_cnt)
-          << "ms" << std::endl;
+    // 根据需要设置SDK输出日志, 可选.
+    // 此处表示SDK日志输出至log-recognizer.txt, LogDebug表示输出所有级别日志
+    if (logLevel > 0) {
+      int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
+          "log-recognizer", logLevel, 400, 50); //"log-recognizer"
+      if (-1 == ret) {
+        std::cout << "set log failed." << std::endl;
+        return -1;
       }
     }
-    pthread_mutex_unlock(&params_mtx);
 
-    std::cout << "threads run count:" << run_count
-      << " success count:" << success_count << std::endl;
-    std::cout << "requests run count:" << run_cnt
-      << " success count:" << run_success
-      << " fail count:" << run_fail << std::endl;
+    // 启动工作线程, 在创建请求和启动前必须调用此函数
+    // 入参为负时, 启动当前系统中可用的核数
+    AlibabaNls::NlsClient::getInstance()->startWorkThread(cur_profile_scan);
 
-    usleep(3000 * 1000);
+    // 识别多个音频数据
+    speechRecognizerMultFile(g_appkey.c_str(), g_threads);
 
-    pthread_mutex_lock(&params_mtx);
-    std::map<unsigned long, struct ParamStatistics *>::iterator iter;
-    for (iter = g_statistics.begin(); iter != g_statistics.end();) {
-      struct ParamStatistics *second = iter->second;
-      if (second) {
-        delete second;
-        second = NULL;
+    // 所有工作完成，进程退出前，释放nlsClient.
+    // 请注意, releaseInstance()非线程安全.
+    AlibabaNls::NlsClient::releaseInstance();
+
+    int size = g_statistics.size();
+    int run_count = 0;
+    int success_count = 0;
+    if (size > 0) {
+      std::map<unsigned long, struct ParamStatistics *>::iterator it;
+      std::cout << "\n" << std::endl;
+      std::cout << "threads run count:" << run_count
+        << " success count:" << success_count << std::endl;
+      std::cout << "requests run count:" << run_cnt
+        << " success count:" << run_success
+        << " fail count:" << run_fail << std::endl;
+
+      usleep(3000 * 1000);
+
+      pthread_mutex_lock(&params_mtx);
+      std::map<unsigned long, struct ParamStatistics *>::iterator iter;
+      for (iter = g_statistics.begin(); iter != g_statistics.end();) {
+        struct ParamStatistics *second = iter->second;
+        if (second) {
+          delete second;
+          second = NULL;
+        }
+        g_statistics.erase(iter++);
       }
-      g_statistics.erase(iter++);
+      g_statistics.clear();
+      pthread_mutex_unlock(&params_mtx);
     }
-    g_statistics.clear();
-    pthread_mutex_unlock(&params_mtx);
+
+    run_cnt = 0;
+    run_success = 0;
+    run_fail = 0;
+    std::cout << "===============================" << std::endl;
+  }  // for
+
+  if (g_sys_info) {
+    int k = 0;
+    for (k = 0; k < profile_scan + 1; k++) {
+      PROFILE_INFO *cur_info = &(g_sys_info[k]);
+      if (k == 0) {
+        std::cout << "WorkThread: " << k - 1
+          << " USER: " << cur_info->usr_name
+          << " CPU: " << cur_info->ave_cpu_percent << "% "
+          << " MEM: " << cur_info->ave_mem_percent << "% "
+          << " Average Time: " << cur_info->eAveTime << "ms"
+          << std::endl;
+      } else {
+        std::cout << "WorkThread: " << k
+          << " USER: " << cur_info->usr_name
+          << " CPU: " << cur_info->ave_cpu_percent << "% "
+          << " MEM: " << cur_info->ave_mem_percent << "% "
+          << " Average Time: " << cur_info->eAveTime << "ms"
+          << std::endl;
+      }
+    }
+
+    delete[] g_sys_info;
+    g_sys_info = NULL;
   }
 
   pthread_mutex_destroy(&params_mtx);

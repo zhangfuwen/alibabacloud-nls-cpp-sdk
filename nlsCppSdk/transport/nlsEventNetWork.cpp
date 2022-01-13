@@ -45,10 +45,8 @@ size_t NlsEventNetWork::_workThreadsNumber = 0;
 size_t NlsEventNetWork::_currentCpuNumber = 0;
 
 #if defined(_MSC_VER)
-HANDLE NlsEventNetWork::_mtxThreadNumber = CreateMutex(NULL, FALSE, NULL);
 HANDLE NlsEventNetWork::_mtxThread = CreateMutex(NULL, FALSE, NULL);
 #else
-pthread_mutex_t NlsEventNetWork::_mtxThreadNumber = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t NlsEventNetWork::_mtxThread = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
@@ -127,14 +125,17 @@ void NlsEventNetWork::destroyEventNetWork() {
   delete [] _workThreadArray;
   _workThreadArray = NULL;
 
+  _workThreadsNumber = 0;
+  _currentCpuNumber = 0;
+
+  delete _eventClient;
+  _eventClient = NULL;
+
 #if defined(_MSC_VER)
   ReleaseMutex(_mtxThread);
 #else
   pthread_mutex_unlock(&_mtxThread);
 #endif
-
-  delete _eventClient;
-  _eventClient = NULL;
 
   LOG_INFO("destroy NlsEventNetWork done.");
   return;
@@ -142,11 +143,6 @@ void NlsEventNetWork::destroyEventNetWork() {
 
 int NlsEventNetWork::selectThreadNumber() {
   int number = 0;
-#if defined(_MSC_VER)
-  WaitForSingleObject(_mtxThreadNumber, INFINITE);
-#else
-  pthread_mutex_lock(&_mtxThreadNumber);
-#endif
 
   if (_workThreadArray != NULL) {
     number = _currentCpuNumber;
@@ -163,11 +159,6 @@ int NlsEventNetWork::selectThreadNumber() {
     number = -1;
   }
 
-#if defined(_MSC_VER)
-  ReleaseMutex(_mtxThreadNumber);
-#else
-  pthread_mutex_unlock(&_mtxThreadNumber);
-#endif
   return number;
 }
 

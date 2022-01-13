@@ -542,33 +542,48 @@ int ConnectNode::gatewayRequest() {
 
 int ConnectNode::gatewayResponse() {
   int ret;
-
-  if (nlsReceive() < 0) {
-    return -1;
+  int read_len;
+  uint8_t *frame = (uint8_t *)calloc(READ_BUFFER_SIZE, sizeof(char));
+  if (frame == NULL) {
+    LOG_ERROR("%s %d calloc failed", __func__, __LINE__);
+    return 0;
   }
 
-  int tmpSize = evbuffer_get_length(_readEvBuffer);
-  char * tmp = (char *)calloc(tmpSize + 1, sizeof(char));
-  if (tmp == NULL) {
-    LOG_ERROR("calloc tmp failed\n");
+  read_len = nlsReceive(frame, READ_BUFFER_SIZE);
+  if (read_len < 0) {
+    free(frame);
     return -1;
+  } else if (read_len == 0) {
+    free(frame);
+    return 0;
   }
 
-  evbuffer_copyout(_readEvBuffer, tmp, tmpSize);  //evbuffer_peek
+  int frameSize = evbuffer_get_length(_readEvBuffer);
+  if (frameSize > READ_BUFFER_SIZE) {
+    frame = (uint8_t *)realloc(frame, frameSize + 1);
+    if (frame == NULL) {
+      LOG_ERROR("%s %d realloc failed", __func__, __LINE__);
+      free(frame);
+      return 0;
+    }
+  }
 
-  ret = _webSocket.responsePackage(tmp, tmpSize);
+  evbuffer_copyout(_readEvBuffer, frame, frameSize);  //evbuffer_peek
+
+  ret = _webSocket.responsePackage((const char*)frame, frameSize);
   if (ret == 0) {
-    evbuffer_drain(_readEvBuffer, tmpSize);
+    evbuffer_drain(_readEvBuffer, frameSize);
   } else if (ret > 0) {
-    LOG_DEBUG("Node:%p GateWay Middle response:%d\n %s", this, tmpSize, tmp);
+    LOG_DEBUG("Node:%p GateWay Middle response:%d\n %s",
+        this, frameSize, frame);
   } else {
     _nodeErrMsg = _webSocket.getFailedMsg();
     LOG_DEBUG("Node:%p webSocket.responsePackage :%s\n",
         this, _nodeErrMsg.c_str());
   }
 
-  if (tmp) free(tmp);
-  tmp = NULL;
+  if (frame) free(frame);
+  frame = NULL;
 
   return ret;
 }
@@ -870,13 +885,13 @@ int ConnectNode::nlsSendFrame(struct evbuffer * eventBuffer) {
   }
 }
 
-int ConnectNode::nlsReceive() {
+int ConnectNode::nlsReceive(uint8_t *buffer, int max_size) {
   int rLen = 0;
-  char buffer[BUFFER_SIZE] = {0};
+  int read_buffer_size = max_size;
   if (_url._isSsl) {
-    rLen = _sslHandle->sslRead((uint8_t *)buffer, BUFFER_SIZE);
+    rLen = _sslHandle->sslRead((uint8_t *)buffer, read_buffer_size);
   } else {
-    rLen = socketRead((uint8_t *)buffer, BUFFER_SIZE);
+    rLen = socketRead((uint8_t *)buffer, read_buffer_size);
   }
 
   if (rLen < 0) {
@@ -898,10 +913,16 @@ int ConnectNode::nlsReceive() {
 int ConnectNode::webSocketResponse() {
   int ret = 0;
   bool rLoop = false;
+  uint8_t *frame = (uint8_t *)calloc(READ_BUFFER_SIZE, sizeof(char));
+  if (frame == NULL) {
+    LOG_ERROR("%s %d calloc failed", __func__, __LINE__);
+    return 0;
+  }
 
   do {
-    ret = nlsReceive();
+    ret = nlsReceive(frame, READ_BUFFER_SIZE);
     if (ret < 0) {
+      free(frame);
       return -1;
     } else if (ret > 0) {
       rLoop = true;
@@ -913,24 +934,34 @@ int ConnectNode::webSocketResponse() {
       size_t frameSize = evbuffer_get_length(_readEvBuffer);
       if (frameSize == 0) {
         //LOG_DEBUG("Node:%p evbuffer_get_length:%d", this, frameSize);
+        free(frame);
         return 0;
+      } else {
+        // no new data added in evbuffer
+        if (ret == 0) {
+          usleep(2 * 1000);
+          break;
+        }
       }
 
-      uint8_t *frame = (uint8_t *) calloc(frameSize + 1, sizeof(char));
-      if (frame == NULL) {
-        LOG_ERROR("%s %d calloc failed", __func__, __LINE__);
-        return 0;
+      if (frameSize > READ_BUFFER_SIZE) {
+        frame = (uint8_t *)realloc(frame, frameSize + 1);
+        if (frame == NULL) {
+          LOG_ERROR("%s %d realloc failed", __func__, __LINE__);
+          free(frame);
+          return 0;
+        }
       }
       evbuffer_copyout(_readEvBuffer, frame, frameSize);
 
-      //LOG_DEBUG("WebSocket Middle response:%d", frameSize);
+      //LOG_DEBUG("Node:%p WebSocket Middle response:%d", this, frameSize);
 
       WebSocketFrame wsFrame;
       memset(&wsFrame, 0x0, sizeof(struct WebSocketFrame));
       if (_webSocket.receiveFullWebSocketFrame(
             frame, frameSize, &_wsType, &wsFrame) == 0) {
         LOG_DEBUG("Node:%p Parse Ws frame:%zu | %zu",
-            this, wsFrame.length, evbuffer_get_length(_readEvBuffer));
+            this, wsFrame.length, frameSize);
 
         parseFrame(&wsFrame);
 
@@ -943,8 +974,6 @@ int ConnectNode::webSocketResponse() {
       } else {
         eLoop = false;
       }
-      if (frame) free(frame);
-      frame = NULL;
     } while (eLoop);
 
     if (getConnectNodeStatus() == NodeInvalid) {
@@ -952,6 +981,9 @@ int ConnectNode::webSocketResponse() {
       break;
     }
   } while (rLoop);
+
+  if (frame) free(frame);
+  frame = NULL;
 
   return 0;
 }

@@ -642,10 +642,10 @@ int speechSynthesizerMultFile(const char* appkey, int threads) {
   };
   const char texts[AUDIO_TEXT_NUMS][AUDIO_TEXT_LENGTH] =
   {
-    "今日天气真不错，我想去操作踢足球.",
-    "今日天气真不错，我想去操作踢足球.",
-    "今日天气真不错，我想去操作踢足球.",
-    "今日天气真不错，我想去操作踢足球."
+    "今日天气真不错，我想去操场踢足球.",
+    "今日天气真不错，我想去操场踢足球.",
+    "今日天气真不错，我想去操场踢足球.",
+    "今日天气真不错，我想去操场踢足球."
   };
   const int c_threads = 5;
   ParamStruct pa[c_threads] = {0};
@@ -775,7 +775,7 @@ int main(int argc, char* argv[]) {
 
   // 启动工作线程, 在创建请求和启动前必须调用此函数
   // 入参为负时, 启动当前系统中可用的核数
-  AlibabaNls::NlsClient::getInstance()->startWorkThread(-1);
+  AlibabaNls::NlsClient::getInstance()->startWorkThread(1);
 
   // 合成多个文本
   speechSynthesizerMultFile(g_appkey.c_str(), g_threads);

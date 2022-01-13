@@ -76,11 +76,6 @@ pthread_mutex_t NlsLog::_mtxLog = PTHREAD_MUTEX_INITIALIZER;
 
 NlsLog* NlsLog::_logInstance = new NlsLog();
 
-void NlsLog::destroyLogInstance() {
-  if (_logInstance) delete _logInstance;
-  _logInstance = NULL;
-}
-
 NlsLog::NlsLog() {
   _logLevel = 1;
   _isStdout = true;
@@ -88,9 +83,6 @@ NlsLog::NlsLog() {
 }
 
 NlsLog::~NlsLog() {
-  _isStdout = true;
-  _isConfig = false;
-
 #if (!defined(__ANDRIOD__)) && (!defined(__APPLE__))
 #if defined(_MSC_VER) || defined(__linux__)
   if (!_isStdout && _isConfig) {
@@ -98,6 +90,9 @@ NlsLog::~NlsLog() {
   }
 #endif
 #endif
+
+  _isStdout = true;
+  _isConfig = false;
 }
 
 unsigned long NlsLog::pthreadSelfId() {
@@ -108,6 +103,20 @@ unsigned long NlsLog::pthreadSelfId() {
 #else
   return pthread_self();
 #endif
+}
+
+NlsLog* NlsLog::getInstance() {
+  if (_logInstance == NULL) {
+    _logInstance = new NlsLog();
+  }
+  return _logInstance;
+}
+
+void NlsLog::destroyLogInstance() {
+  if (_logInstance) {
+    delete _logInstance;
+    _logInstance = NULL;
+  }
 }
 
 #if (!defined(__ANDRIOD__)) && (!defined(__APPLE__))

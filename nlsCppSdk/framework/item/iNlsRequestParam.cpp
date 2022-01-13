@@ -29,18 +29,22 @@
 namespace AlibabaNls {
 
 #if defined(__ANDROID__)
-  const char g_sdk_name[] = "nls-cpp-sdk-android";
+  const char g_sdk_name[] = "nls-cpp-sdk3.x-android";
 #elif defined(_MSC_VER)
-  const char g_sdk_name[] = "nls-cpp-sdk-windows";
+  const char g_sdk_name[] = "nls-cpp-sdk3.x-windows";
 #elif defined(__APPLE__)
-  const char g_sdk_name[] = "nls-cpp-sdk-ios";
+  const char g_sdk_name[] = "nls-cpp-sdk3.x-ios";
 #elif defined(__linux__)
-  const char g_sdk_name[] = "nls-cpp-sdk-linux";
+  const char g_sdk_name[] = "nls-cpp-sdk3.x-linux";
 #else
-  const char g_sdk_name[] = "nls-cpp-sdk-unknown";
+  const char g_sdk_name[] = "nls-cpp-sdk3.x-unknown";
 #endif
 
+#ifdef NLS_CSHARP_SDK
+const char g_sdk_language[] = "Csharp";
+#else
 const char g_sdk_language[] = "C++";
+#endif
 const char g_sdk_version[] = NLS_SDK_VERSION_STR;
 
 #define STOP_RECV_TIMEOUT 12

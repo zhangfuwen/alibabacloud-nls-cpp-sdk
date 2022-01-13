@@ -28,6 +28,13 @@
     #define NLS_SDK_CLIENT_EXPORT NLS_SDK_DECL_IMPORT
   #endif
 
+  #define NLS_EXTERN_C extern "C"
+  #define NLS_EXPORTS NLS_SDK_DECL_EXPORT
+  #define NLS_CDECL __cdecl
+  #define NLSAPI(rettype) NLS_EXTERN_C NLS_EXPORTS rettype NLS_CDECL
+
+  typedef int (NLS_CDECL * NlsCallbackDelegate)(int);
+
 #else
 
   #if defined(_NLS_SDK_SHARED_)

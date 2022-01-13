@@ -1139,9 +1139,11 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  std::cout << "nls version: " << AlibabaNls::NlsClient::getInstance()->getVersion() << std::endl;
+
   // 启动工作线程, 在创建请求和启动前必须调用此函数
   // 入参为负时, 启动当前系统中可用的核数
-  AlibabaNls::NlsClient::getInstance()->startWorkThread(-1);
+  AlibabaNls::NlsClient::getInstance()->startWorkThread(1);
 
   // 识别多个音频数据
   speechTranscriberMultFile(g_appkey.c_str(), g_threads);

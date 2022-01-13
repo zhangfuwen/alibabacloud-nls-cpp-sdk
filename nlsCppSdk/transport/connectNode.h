@@ -140,7 +140,7 @@ class ConnectNode {
 
   int nlsSend(const uint8_t * frame, size_t length);
   int nlsSendFrame(struct evbuffer * eventBuffer);
-  int nlsReceive();
+  int nlsReceive(uint8_t *buffer, int max_size);
 
   int gatewayResponse();
   int gatewayRequest();

@@ -20,7 +20,7 @@
 #include "nlsGlobal.h"
 #include "iNlsRequest.h"
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
 	#pragma warning( push )
 	#pragma warning ( disable : 4251 )
 #endif
@@ -207,7 +207,7 @@ class NLS_SDK_CLIENT_EXPORT SpeechSynthesizerRequest : public INlsRequest {
   int stop();
 
   /**
-   * @brief 不会与服务端确认关闭，直接关闭实时音频流识别过程
+   * @brief 不会与服务端确认关闭，直接关闭语音合成过程
    * @note 调用cancel之后不会在上报任何回调事件
    * @return 成功则返回0，否则返回-1
    */
@@ -280,7 +280,7 @@ class NLS_SDK_CLIENT_EXPORT SpeechSynthesizerRequest : public INlsRequest {
 
 }
 
-#if defined (_WIN32)
+#if defined (_MSC_VER)
 	#pragma warning( pop )
 #endif
 

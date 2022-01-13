@@ -55,10 +55,8 @@ class NlsEventNetWork {
   static size_t _currentCpuNumber;
 
 #if defined(_MSC_VER)
-  static HANDLE _mtxThreadNumber;
   static HANDLE _mtxThread;
 #else
-  static pthread_mutex_t _mtxThreadNumber;
   static pthread_mutex_t _mtxThread;
 #endif
 

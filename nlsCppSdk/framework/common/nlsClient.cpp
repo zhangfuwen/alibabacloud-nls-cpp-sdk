@@ -58,7 +58,7 @@ NlsClient* NlsClient::getInstance(bool sslInitial) {
     _instance = new NlsClient();
   }
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
   ReleaseMutex(_mtx);
 #else
   pthread_mutex_unlock(&_mtx);
@@ -76,10 +76,11 @@ void NlsClient::releaseInstance() {
 #endif
 
   if (_instance) {
-    LOG_DEBUG("release NlsClient.");
+    LOG_DEBUG("release NlsClient instance:%p.", _instance);
 
     if (_isInitializeThread) {
       NlsEventNetWork::destroyEventNetWork();
+      _isInitializeThread = false;
     }
 
     if (_isInitializeSSL) {
@@ -88,13 +89,13 @@ void NlsClient::releaseInstance() {
       _isInitializeSSL = false;
     }
 
-    utility::NlsLog::destroyLogInstance();
-
     delete _instance;
     _instance = NULL;
+
+    utility::NlsLog::destroyLogInstance();  // donnot LOG_XXX after here
   }
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
   ReleaseMutex(_mtx);
 #else
   pthread_mutex_unlock(&_mtx);
@@ -120,7 +121,7 @@ void NlsClient::startWorkThread(int threadsNumber) {
     _isInitializeThread = true;
   }
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
   ReleaseMutex(_mtx);
 #else
   pthread_mutex_unlock(&_mtx);
@@ -139,7 +140,7 @@ int NlsClient::setLogConfig(const char* logOutputFile,
     return -1;
   }
 
-  utility::NlsLog::_logInstance->logConfig(
+  utility::NlsLog::getInstance()->logConfig(
       logOutputFile, logLevel, logFileSize, logFileNum);
 
 	return 0;

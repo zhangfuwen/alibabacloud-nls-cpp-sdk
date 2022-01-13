@@ -102,7 +102,7 @@ call %vc64Dir%\vcvars64.bat
 	set curl_src_folder=%curl_folder%\curl-7.79.1\curl-7.79.1
 	xcopy %curl_src_folder%\include %curl_include_folder% /y/s
 	
- pause
+rem pause
 ::goto:eof
 
 
