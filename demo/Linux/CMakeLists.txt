@@ -28,23 +28,24 @@ target_link_libraries(srDemo
     alibabacloud-idst-speech
     pthread z dl psl brotlidec pulse pulse-simple)
 
+
 # 实时识别
-add_executable(stDemo profile_scan.cpp speechTranscriberDemo.cpp)
-target_link_libraries(stDemo
-    alibabacloud-idst-speech
-    pthread z dl)
-
-# 转写
-add_executable(syDemo profile_scan.cpp speechSynthesizerDemo.cpp)
-target_link_libraries(syDemo
-    alibabacloud-idst-speech
-    pthread z dl)
-
-# 对话助手
-add_executable(daDemo dialogAssistantDemo.cpp)
-target_link_libraries(daDemo
-    alibabacloud-idst-speech
-    pthread z dl)
+#add_executable(stDemo profile_scan.cpp speechTranscriberDemo.cpp)
+#target_link_libraries(stDemo
+#    alibabacloud-idst-speech
+#    pthread z dl)
+#
+## 转写
+#add_executable(syDemo profile_scan.cpp speechSynthesizerDemo.cpp)
+#target_link_libraries(syDemo
+#    alibabacloud-idst-speech
+#    pthread z dl)
+#
+## 对话助手
+#add_executable(daDemo dialogAssistantDemo.cpp)
+#target_link_libraries(daDemo
+#    alibabacloud-idst-speech
+#    pthread z dl)
 
 
 
