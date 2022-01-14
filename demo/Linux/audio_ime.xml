@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component>
+    <name>org.freedesktop.IBus.AudIme</name>
+    <description>Audio Input method</description>
+    <exec>/usr/bin/audio_ime --ibus</exec>
+    <version>1.0</version>
+    <author>zhangfuwen</author>
+    <license>MIT</license>
+    <homepage>xx</homepage>
+    <textdomain>audio_ime</textdomain>
+
+    <engines>
+        <engine>
+            <name>audio_ime</name>
+            <language>zh</language>
+            <license>MIT</license>
+            <author>zhangfuwen</author>
+            <icon>audio_ime</icon>
+            <layout>us</layout>
+            <longname>Audio Input method</longname>
+            <description>Audio Input method</description>
+            <rank>0</rank>
+        </engine>
+    </engines>
+</component>

@@ -52,6 +52,40 @@
 #define DEBUG(fmt, ...) printf("%s:%d %s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define DBG DEBUG
 
+#include <glib-2.0/glib.h>
+#include <glib-object.h>
+#include <glib/gstdio.h>
+#include <ibus.h>
+#include <stdio.h>
+#include <thread>
+#include <fcntl.h>
+
+FILE* myfile;
+
+#define LOG_INFO(fmt, ...)                                                           \
+    do                                                                               \
+    {                                                                                \
+        printf("%s:%d %s > " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
+        fprintf(myfile, "%s:%d %s > " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
+        g_info("%s:%d %s > " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__);      \
+    } while (0)
+
+#define LOG_DEBUG LOG_INFO
+#define LOG_WARN LOG_INFO
+#define LOG_ERROR LOG_INFO
+void engine_commit_text(IBusEngine * engine, IBusText * text);
+
+static gint id = 0;
+static IBusEngine *g_engine = nullptr;
+static IBusLookupTable *g_table = nullptr;
+IBusBus *bus;
+int startRecording();
+volatile bool recording = false;
+volatile int recordingTime = 0; // can only record 60 seconds;
+volatile bool waiting = false; //waiting for converted text from internet
+void updateIndicator();
+
+std::string audio_text = "";
 /**
  * 全局维护一个服务鉴权token和其对应的有效期时间戳，
  * 每次调用服务之前，首先判断token是否已经过期，
@@ -156,6 +190,10 @@ void OnRecognitionStarted1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
 
 void OnRecognitionResultChanged1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
     std::cout << "result changed" << std::endl;
+    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(cbEvent->getResult()), 0, TRUE);
+//    ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string(cbEvent->getResult()));
+//    ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE); // this line determines if lookup table is displayed
+//    ibus_lookup_table_set_cursor_pos(g_table, 0);
 }
 
 /**
@@ -181,9 +219,17 @@ void OnRecognitionCompleted1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
               << ", task id: " << cbEvent->getTaskId()    // 当前任务的task id，方便定位问题，建议输出
               << ", result: " << cbEvent->getResult()  // 获取中间识别结果
               << std::endl;
+    audio_text = cbEvent->getResult();
 
     std::cout << "OnRecognitionCompleted: All response:"
               << cbEvent->getAllResponse() << std::endl; // 获取服务端返回的全部信息
+
+    waiting = false;
+    recording = false;
+    engine_commit_text(g_engine, ibus_text_new_from_string(audio_text.c_str()));
+    audio_text="";
+    ibus_lookup_table_clear(g_table);
+    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(""),0, false);
 }
 
 /**
@@ -210,6 +256,11 @@ void OnRecognitionTaskFailed1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
 
     std::cout << "OnRecognitionTaskFailed: All response:"
               << cbEvent->getAllResponse() << std::endl; // 获取服务端返回的全部信息
+    waiting = false;
+    audio_text="";
+    engine_commit_text(g_engine, ibus_text_new_from_string(audio_text.c_str()));
+    ibus_lookup_table_clear(g_table);
+    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(""),0, false);
 }
 
 /**
@@ -359,10 +410,15 @@ int recognizeAudio(ParamStruct1 *tst) {
     struct timeval x;
     gettimeofday(&x, NULL);
 
-    while (true) {
+    while (recording) {
         struct timeval y;
         gettimeofday(&y, NULL);
-        if (y.tv_sec - x.tv_sec > 10) {
+        int newRecordingTime = y.tv_sec - x.tv_sec;
+        if(newRecordingTime - recordingTime >=1){
+            updateIndicator();
+        }
+        recordingTime = newRecordingTime;
+        if (recordingTime > 59) {
             break;
         }
         uint8_t buf[BUFSIZE];
@@ -389,6 +445,7 @@ int recognizeAudio(ParamStruct1 *tst) {
             break;
         }
     }  // while
+    recordingTime = 0;
 
     /*
      * 6: 通知云端数据发送结束.
@@ -417,7 +474,162 @@ int recognizeAudio(ParamStruct1 *tst) {
     return 0;
 }
 
-int main() {
+
+static void sigterm_cb(int sig)
+{
+            LOG_ERROR("sig term %d", sig);
+    exit(-1);
+}
+
+static void ibus_disconnected_cb(IBusBus *bus, gpointer user_data)
+{
+    ibus_quit();
+}
+
+void engine_reset(IBusEngine * engine, IBusLookupTable * table) {
+    ibus_lookup_table_clear(table);
+    ibus_engine_hide_preedit_text(engine);
+    ibus_engine_hide_auxiliary_text(engine);
+    ibus_engine_hide_lookup_table(engine);
+}
+
+void engine_commit_text(IBusEngine * engine, IBusText * text) {
+    ibus_engine_commit_text(engine, text);
+    engine_reset(engine, g_table);
+}
+
+
+std::string getIndicatingMsg()
+{
+    std::string msg = "press space to toggle record[";
+    if(recording) {
+        msg += "recording " + std::to_string(recordingTime);
+    }
+    if(waiting) {
+        msg += "waiting";
+    }
+    msg += "]";
+    return msg;
+}
+
+void updateIndicator() {
+    ibus_lookup_table_clear(g_table);
+    ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string(getIndicatingMsg().c_str()));
+    ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE); // this line determines if lookup table is displayed
+    ibus_lookup_table_set_cursor_pos(g_table, 0);
+}
+
+gboolean engine_process_key_event_cb(IBusEngine *engine,
+                                     guint keyval,
+                                     guint keycode,
+                                     guint state)
+{
+    LOG_INFO("engine_process_key_event");
+    ibus_engine_show_lookup_table(engine);
+    ibus_engine_show_preedit_text(engine);
+    ibus_engine_show_auxiliary_text(engine);
+
+    if(state & IBUS_RELEASE_MASK) {
+        return FALSE;
+    }
+
+
+    switch (keyval)
+    {
+        case IBUS_KEY_space:
+            if(waiting) {
+                return TRUE;
+            }
+            if(!recording) {
+                recording = true;
+                std::thread t1([]() {
+                    startRecording();
+                });
+                t1.detach();
+            } else {
+                recording = false;
+                waiting = true;
+                //engine_commit_text(engine, ibus_text_new_from_string(audio_text.c_str()));
+            }
+            updateIndicator();
+            break;
+
+        default:
+            //updateIndicator();
+//            ibus_lookup_table_clear(g_table);
+//            ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string("say something"));
+////            ibus_lookup_table_append_candidate(table, ibus_text_new_from_string("hello"));
+//            ibus_engine_update_lookup_table_fast(engine, g_table, TRUE); // this line determines if lookup table is displayed
+////            ibus_engine_update_preedit_text(engine, ibus_text_new_from_string("xx"), 2, TRUE);
+//            ibus_lookup_table_set_cursor_pos(g_table, 0);
+            break;
+    }
+
+    //ibus_lookup_table_clear(table);
+    //ibus_engine_hide_lookup_table(engine);
+}
+
+
+
+void engine_enable_cb(IBusEngine *engine)
+{
+    LOG_INFO("[IM:iBus]: IM enabled\n");
+    // Setup Lookup table
+    g_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
+    LOG_INFO("table %p", g_table);
+    g_object_ref_sink(g_table);
+
+    ibus_lookup_table_set_orientation(g_table, IBUS_ORIENTATION_VERTICAL);
+    ibus_engine_show_lookup_table(engine);
+    ibus_engine_show_auxiliary_text(engine);
+}
+
+void engine_disable_cb(IBusEngine *engine)
+{
+    LOG_INFO("[IM:iBus]: IM disabled\n");
+}
+
+void engine_focus_out_cb(IBusEngine *engine)
+{
+    LOG_INFO("[IM:iBus]: IM Focus out\n");
+
+    //   if(riti_context_ongoing_input_session(ctx)) {
+    //     riti_context_finish_input_session(ctx);
+    //     engine_reset();
+    //   }
+}
+
+void engine_candidate_clicked_cb(IBusEngine *engine, guint index, guint button, guint state)
+{
+    LOG_INFO("[IM:iBus]: candidate clicked\n");
+    ibus_engine_commit_text(engine, ibus_text_new_from_string("sss"));
+    //   IBusText *text = ibus_lookup_table_get_candidate(table, index);
+    //   riti_context_candidate_committed(ctx, index);
+}
+
+IBusEngine *create_engine_cb(IBusFactory *factory,
+                             gchar *engine_name,
+                             gpointer user_data)
+{
+    id += 1;
+    gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
+    g_engine = ibus_engine_new(engine_name,
+                               path,
+                               ibus_bus_get_connection(bus));
+
+    // Setup Lookup table
+    LOG_INFO("[IM:iBus]: Creating IM Engine\n");
+    LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d\n", engine_name, id);
+
+    g_signal_connect(g_engine, "process-key-event", G_CALLBACK(engine_process_key_event_cb), NULL);
+    g_signal_connect(g_engine, "enable", G_CALLBACK(engine_enable_cb), NULL);
+    g_signal_connect(g_engine, "disable", G_CALLBACK(engine_disable_cb), NULL);
+    g_signal_connect(g_engine, "focus-out", G_CALLBACK(engine_focus_out_cb), NULL);
+    g_signal_connect(g_engine, "candidate-clicked", G_CALLBACK(engine_candidate_clicked_cb), NULL);
+
+    return g_engine;
+}
+int startRecording() {
     int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
             "log-recognizer", AlibabaNls::LogLevel::LogDebug, 400, 50); //"log-recognizer"
     if (-1 == ret) {
@@ -443,5 +655,83 @@ int main() {
     recognizeAudio(&tst);
     AlibabaNls::NlsClient::getInstance()->releaseInstance();
     return 0;
+}
+
+
+int main(gint argc, gchar **argv)
+{
+    signal(SIGTERM, sigterm_cb);
+    signal(SIGINT, sigterm_cb);
+    myfile = fopen ("./log.txt", "a");
+
+    ibus_init();
+    bus = ibus_bus_new();
+    g_object_ref_sink(bus);
+
+            LOG_DEBUG("bus %p", bus);
+
+    if (!ibus_bus_is_connected(bus))
+    {
+                LOG_WARN("not connected to ibus");
+        exit(0);
+    }
+
+            LOG_DEBUG("ibus bus connected");
+
+    g_signal_connect(bus, "disconnected", G_CALLBACK(ibus_disconnected_cb), NULL);
+
+    IBusFactory *factory = ibus_factory_new(ibus_bus_get_connection(bus));
+            LOG_DEBUG("factory %p", factory);
+    g_object_ref_sink(factory);
+
+    g_signal_connect(factory, "create-engine", G_CALLBACK(create_engine_cb), NULL);
+
+    ibus_factory_add_engine(factory, "AudIme", IBUS_TYPE_ENGINE);
+
+    IBusComponent *component;
+
+    if (bus)
+    {
+        if (!ibus_bus_request_name(bus, "org.freedesktop.IBus.AudIme", 0))
+        {
+                    LOG_ERROR("error requesting bus name");
+            exit(1);
+        }
+        else
+        {
+            LOG_INFO("ibus_bus_request_name success");
+        }
+    }
+    else
+    {
+        component = ibus_component_new("org.freedesktop.IBus.AudIme",
+                                       "LOT input method",
+                                       "1.1",
+                                       "MIT",
+                                       "zhangfuwen",
+                                       "xxx",
+                                       "/usr/bin/audio_ime --ibus",
+                                       "audio_ime");
+                LOG_DEBUG("component %p", component);
+        ibus_component_add_engine(component,
+                                  ibus_engine_desc_new("AudIme",
+                                                       "audo input method",
+                                                       "audo input method",
+                                                       "zh_CN",
+                                                       "MIT",
+                                                       "zhangfuwen",
+                                                       "audio_ime",
+                                                       "default"));
+        ibus_bus_register_component(bus, component);
+
+        ibus_bus_set_global_engine_async(bus, "AudIme", -1, nullptr, nullptr, nullptr);
+    }
+
+    LOG_INFO("entering ibus main");
+    ibus_main();
+    LOG_INFO("exiting ibus main");
+
+    g_object_unref(factory);
+    g_object_unref(bus);
 }
 

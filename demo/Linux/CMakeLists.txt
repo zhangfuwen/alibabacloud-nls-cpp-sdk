@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+
 project(speech-demo)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -23,12 +23,48 @@ add_executable(pulse_record pulse_record.cpp)
 target_link_libraries(pulse_record pulse pulse-simple)
 
 # 一句话识别
-add_executable(srDemo profile_scan.cpp speechRecognizerDemo.cpp)
-target_link_libraries(srDemo
-    alibabacloud-idst-speech
-    pthread z dl psl brotlidec pulse pulse-simple)
+include(GNUInstallDirs)
+
+find_package(PkgConfig)
+pkg_check_modules(IBus REQUIRED ibus-1.0)
+if(IBus_FOUND)
+    include_directories(${IBus_INCLUDE_DIRS})
+    message("IBus_INCLUDE_DIRS ${IBus_INCLUDE_DIRS}")
+    link_directories(${IBus_LIBRARY_DIRS})
+endif(IBus_FOUND)
+
+pkg_check_modules(GLib2 REQUIRED glib-2.0)
+
+if(GLib2_FOUND)
+    include_directories(${GLib2_INCLUDE_DIRS})
+    link_directories(${GLib2_LIBRARY_DIRS})
+    message("GLib2_INCLUDE_DIRS ${GLib2_INCLUDE_DIRS}")
+else()
+    message("glib2 not found")
+endif(GLib2_FOUND)
 
 
+add_executable(audio_ime profile_scan.cpp speechRecognizerDemo.cpp)
+target_link_libraries(audio_ime
+    alibabacloud-idst-speech.a
+    pthread z dl psl brotlidec pulse pulse-simple
+    ${IBus_LIBRARIES} ${GLib2_LIBRARIES})
+
+SET(CPACK_GENERATOR "DEB")
+SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Dean") #required
+set(CPACK_PACKAGE_NAME "audio_ime") # debian package name
+set(CPACK_PACKAGE_VERSION "1.1")
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA, ./script/prerm)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpsl-dev")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpulse-dev")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libbrotli-dev")
+
+INSTALL(FILES audio_ime.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES audio_ime.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(TARGETS audio_ime DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES audio_ime.png DESTINATION share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+
+INCLUDE(CPack)
 # 实时识别
 #add_executable(stDemo profile_scan.cpp speechTranscriberDemo.cpp)
 #target_link_libraries(stDemo

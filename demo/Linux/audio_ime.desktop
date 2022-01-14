@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories=AudioVideo;
+Comment=Audio Input Method
+Exec=/usr/bin/audio_ime %u
+GenericName=audio_ime
+Icon=audio_ime
+Keywords=audio_ime;
+Name=中文语音输入法
+Type=Application
+X-Deepin-Vendor=user-custom
