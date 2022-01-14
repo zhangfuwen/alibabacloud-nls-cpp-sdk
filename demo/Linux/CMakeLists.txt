@@ -19,11 +19,14 @@ MESSAGE("CMAKE_SOURCE_DIR " ${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/../../build/install/NlsSdk3.X_LINUX/include)
 link_directories(${CMAKE_SOURCE_DIR}/../../build/install/NlsSdk3.X_LINUX/lib)
 
+add_executable(pulse_record pulse_record.cpp)
+target_link_libraries(pulse_record pulse pulse-simple)
+
 # 一句话识别
 add_executable(srDemo profile_scan.cpp speechRecognizerDemo.cpp)
 target_link_libraries(srDemo
     alibabacloud-idst-speech
-    pthread z dl)
+    pthread z dl psl brotlidec pulse pulse-simple)
 
 # 实时识别
 add_executable(stDemo profile_scan.cpp speechTranscriberDemo.cpp)
