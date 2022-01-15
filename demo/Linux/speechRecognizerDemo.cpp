@@ -67,6 +67,7 @@ FILE* myfile;
     {                                                                                \
         printf("%s:%d %s > " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
         fprintf(myfile, "%s:%d %s > " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
+        fflush(myfile); \
         g_info("%s:%d %s > " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__);      \
     } while (0)
 
@@ -143,9 +144,7 @@ int generateToken(std::string akId, std::string akSecret,
 //  nlsTokenRequest.setDomain("nls-meta-vpc-pre.aliyuncs.com");
 
     if (-1 == nlsTokenRequest.applyNlsToken()) {
-        std::cout << "Failed: "
-                  << nlsTokenRequest.getErrorMsg()
-                  << std::endl;  /*获取失败原因*/
+        LOG_INFO("Failed:%s", nlsTokenRequest.getErrorMsg());
         return -1;
     }
 
@@ -165,19 +164,16 @@ int generateToken(std::string akId, std::string akSecret,
 void OnRecognitionStarted1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
     if (cbParam) {
         ParamCallBack1 *tmpParam = (ParamCallBack1 *) cbParam;
-        std::cout << "OnRecognitionStarted userId: " << tmpParam->userId
-                  << ", " << tmpParam->userInfo << std::endl; // 仅表示自定义参数示例
+        LOG_INFO("OnRecognitionStarted userId:%lu, %s", tmpParam->userId, tmpParam->userInfo); // 仅表示自定义参数示例
         //通知发送线程start()成功, 可以继续发送数据
         pthread_mutex_lock(&(tmpParam->mtxWord));
         pthread_cond_signal(&(tmpParam->cvWord));
         pthread_mutex_unlock(&(tmpParam->mtxWord));
     }
 
-    std::cout << "OnRecognitionStarted: "
-              << "status code: " << cbEvent->getStatusCode()  // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
-              << ", task id: " << cbEvent->getTaskId()   // 当前任务的task id，方便定位问题，建议输出
-              << std::endl;
-
+    LOG_INFO("OnRecognitionStarted: status code:%d, task id:%s", 
+            cbEvent->getStatusCode(),  // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
+            cbEvent->getTaskId());   // 当前任务的task id，方便定位问题，建议输出
 }
 
 /**
@@ -189,7 +185,7 @@ void OnRecognitionStarted1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
  */
 
 void OnRecognitionResultChanged1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
-    std::cout << "result changed" << std::endl;
+    LOG_INFO("result changed");
     ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(cbEvent->getResult()), 0, TRUE);
 //    ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string(cbEvent->getResult()));
 //    ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE); // this line determines if lookup table is displayed
@@ -209,20 +205,17 @@ void OnRecognitionCompleted1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
     if (cbParam) {
         ParamCallBack1 *tmpParam = (ParamCallBack1 *) cbParam;
         if (!tmpParam->tParam) return;
-        std::cout << "OnRecognitionCompleted: userId " << tmpParam->userId << ", "
-                  << tmpParam->userInfo << std::endl; // 仅表示自定义参数示例
-
+        LOG_INFO("OnRecognitionCompleted: userId %lu, %s", tmpParam->userId, tmpParam->userInfo); // 仅表示自定义参数示例
     }
 
-    std::cout << "OnRecognitionCompleted: "
-              << "status code: " << cbEvent->getStatusCode()  // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
-              << ", task id: " << cbEvent->getTaskId()    // 当前任务的task id，方便定位问题，建议输出
-              << ", result: " << cbEvent->getResult()  // 获取中间识别结果
-              << std::endl;
+    LOG_INFO("OnRecognitionCompleted: status code:%d, task id:%s, result:%s", 
+            cbEvent->getStatusCode(),  // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
+            cbEvent->getTaskId(),    // 当前任务的task id，方便定位问题，建议输出
+            cbEvent->getResult());  // 获取中间识别结果
+
     audio_text = cbEvent->getResult();
 
-    std::cout << "OnRecognitionCompleted: All response:"
-              << cbEvent->getAllResponse() << std::endl; // 获取服务端返回的全部信息
+    LOG_INFO("OnRecognitionCompleted: All response:%s", cbEvent->getAllResponse()); // 获取服务端返回的全部信息
 
     waiting = false;
     recording = false;
@@ -244,18 +237,15 @@ void OnRecognitionCompleted1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
 void OnRecognitionTaskFailed1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
     if (cbParam) {
         ParamCallBack1 *tmpParam = (ParamCallBack1 *) cbParam;
-        std::cout << "taskFailed userId: " << tmpParam->userId
-                  << ", " << tmpParam->userInfo << std::endl; // 仅表示自定义参数示例
+        LOG_INFO("taskFailed userId:%lu, %s", tmpParam->userId, tmpParam->userInfo); // 仅表示自定义参数示例
     }
 
-    std::cout << "OnRecognitionTaskFailed: "
-              << "status code: " << cbEvent->getStatusCode() // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
-              << ", task id: " << cbEvent->getTaskId()    // 当前任务的task id，方便定位问题，建议输出
-              << ", error message: " << cbEvent->getErrorMessage()
-              << std::endl;
+    LOG_INFO("OnRecognitionTaskFailed: status code:%d, task id:%s, error message:%s", 
+            cbEvent->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
+            cbEvent->getTaskId(),   // 当前任务的task id，方便定位问题，建议输出
+            cbEvent->getErrorMessage());
 
-    std::cout << "OnRecognitionTaskFailed: All response:"
-              << cbEvent->getAllResponse() << std::endl; // 获取服务端返回的全部信息
+    LOG_INFO("OnRecognitionTaskFailed: All response:%s", cbEvent->getAllResponse()); // 获取服务端返回的全部信息
     waiting = false;
     audio_text="";
     engine_commit_text(g_engine, ibus_text_new_from_string(audio_text.c_str()));
@@ -272,12 +262,12 @@ void OnRecognitionTaskFailed1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
  */
 
 void OnRecognitionChannelClosed1(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
-    std::cout << "OnRecognitionChannelClosed: All response:"
-              << cbEvent->getAllResponse() << std::endl; // 获取服务端返回的全部信息
+    LOG_INFO("OnRecognitionChannelClosed: All response:%s", cbEvent->getAllResponse()); // 获取服务端返回的全部信息
     if (cbParam) {
         ParamCallBack1 *tmpParam = (ParamCallBack1 *) cbParam;
-        std::cout << "OnRecognitionChannelClosed CbParam: " << tmpParam->userId << ", "
-                  << tmpParam->userInfo << std::endl; // 仅表示自定义参数示例
+        LOG_INFO("OnRecognitionChannelClosed CbParam:%lu, %s", 
+                tmpParam->userId,
+                tmpParam->userInfo); // 仅表示自定义参数示例
 
 
         //通知发送线程, 最终识别结果已经返回, 可以调用stop()
@@ -291,7 +281,7 @@ int recognizeAudio(ParamStruct1 *tst) {
 
     // 0: 从自定义线程参数中获取token, 配置文件等参数.
     if (tst == NULL) {
-        std::cout << "arg is not valid." << std::endl;
+        LOG_ERROR("arg is not valid.");
         return -1;
     }
 
@@ -301,7 +291,7 @@ int recognizeAudio(ParamStruct1 *tst) {
     ParamCallBack1 *cbParam = NULL;
     cbParam = new ParamCallBack1(tst);
     if (!cbParam) {
-        std::cout << "failed to allocate memory" << std::endl;
+        LOG_ERROR("failed to allocate memory");
         return -2;
     }
     cbParam->userId = pthread_self();
@@ -313,7 +303,7 @@ int recognizeAudio(ParamStruct1 *tst) {
     AlibabaNls::SpeechRecognizerRequest *request =
             AlibabaNls::NlsClient::getInstance()->createRecognizerRequest();
     if (request == NULL) {
-        std::cout << "createRecognizerRequest failed." << std::endl;
+        LOG_ERROR("createRecognizerRequest failed.");
         return -3;
     }
 
@@ -331,7 +321,7 @@ int recognizeAudio(ParamStruct1 *tst) {
     // 设置AppKey, 必填参数, 请参照官网申请
     if (strlen(tst->appkey) > 0) {
         request->setAppKey(tst->appkey);
-        std::cout << "setAppKey: " << tst->appkey << std::endl;
+        LOG_INFO("setAppKey:%s", tst->appkey);
     }
     // 设置音频数据编码格式, 可选参数, 目前支持pcm,opus,opu. 默认是pcm
     request->setFormat("pcm");
@@ -360,31 +350,29 @@ int recognizeAudio(ParamStruct1 *tst) {
     // 设置账号校验token, 必填参数
     if (strlen(tst->token) > 0) {
         request->setToken(tst->token);
-        std::cout << "setToken: " << tst->token << std::endl;
+        LOG_INFO("setToken:%s", tst->token);
     }
     if (strlen(tst->url) > 0) {
-        std::cout << "setUrl: " << tst->url << std::endl;
+        LOG_INFO("setUrl:%s", tst->url);
         request->setUrl(tst->url);
     }
 
-    std::cout << "begin sendAudio. "
-              << pthread_self()
-              << std::endl;
+    LOG_INFO("begin sendAudio. ");
 
     /*
      * 2: start()为异步操作。成功返回started事件。失败返回TaskFailed事件。
      */
-    DBG("start ->");
+    LOG_INFO("start ->");
     struct timespec outtime;
     struct timeval now;
     int ret = request->start();
     if (ret < 0) {
-        std::cout << "start failed(" << ret << ")." << std::endl;
+        LOG_ERROR("start failed(%d)", ret);
         AlibabaNls::NlsClient::getInstance()->releaseRecognizerRequest(request);
         return -4;
     } else {
         //等待started事件返回, 在发送
-        std::cout << "wait started callback." << std::endl;
+        LOG_INFO("wait started callback.");
         gettimeofday(&now, NULL);
         outtime.tv_sec = now.tv_sec + 10;
         outtime.tv_nsec = now.tv_usec * 1000;
@@ -403,7 +391,7 @@ int recognizeAudio(ParamStruct1 *tst) {
 
     /* Create the recording stream */
     if (!(s = pa_simple_new(NULL, "audio_ime", PA_STREAM_RECORD, NULL, "record", &ss, NULL, NULL, &error))) {
-        fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
+        LOG_INFO("pa_simple_new() failed: %s\n", pa_strerror(error));
         return -5;
     }
 
@@ -425,7 +413,7 @@ int recognizeAudio(ParamStruct1 *tst) {
 
         /* Record some data ... */
         if (pa_simple_read(s, buf, sizeof(buf), &error) < 0) {
-            fprintf(stderr, __FILE__": pa_simple_read() failed: %s\n", pa_strerror(error));
+            LOG_INFO("pa_simple_read() failed: %s\n", pa_strerror(error));
             break;
         }
         uint8_t data[frame_size];
@@ -441,7 +429,7 @@ int recognizeAudio(ParamStruct1 *tst) {
         ret = request->sendAudio(buf, sizeof(buf), (ENCODER_TYPE) encoder_type);
         if (ret < 0) {
             // 发送失败, 退出循环数据发送
-            std::cout << "send data fail(" << ret << ")." << std::endl;
+            LOG_ERROR("send data fail(%d)", ret);
             break;
         }
     }  // while
@@ -453,13 +441,13 @@ int recognizeAudio(ParamStruct1 *tst) {
      */
     // stop()后会收到所有回调，若想立即停止则调用cancel()
     ret = request->stop();
-    std::cout << "stop done" << "\n" << std::endl;
+    LOG_INFO("stop done");
 
     /*
      * 6: 通知SDK释放request.
      */
     if (ret == 0) {
-        std::cout << "wait closed callback." << std::endl;
+        LOG_INFO("wait closed callback.");
         gettimeofday(&now, NULL);
         outtime.tv_sec = now.tv_sec + 10;
         outtime.tv_nsec = now.tv_usec * 1000;
@@ -468,7 +456,7 @@ int recognizeAudio(ParamStruct1 *tst) {
         pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord), &outtime);
         pthread_mutex_unlock(&(cbParam->mtxWord));
     } else {
-        std::cout << "stop ret is " << ret << std::endl;
+        LOG_INFO("stop ret is %d", ret);
     }
     AlibabaNls::NlsClient::getInstance()->releaseRecognizerRequest(request);
     return 0;
@@ -477,7 +465,7 @@ int recognizeAudio(ParamStruct1 *tst) {
 
 static void sigterm_cb(int sig)
 {
-            LOG_ERROR("sig term %d", sig);
+    LOG_ERROR("sig term %d", sig);
     exit(-1);
 }
 
@@ -567,6 +555,7 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
 
     //ibus_lookup_table_clear(table);
     //ibus_engine_hide_lookup_table(engine);
+    return TRUE;
 }
 
 
@@ -633,7 +622,7 @@ int startRecording() {
     int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
             "log-recognizer", AlibabaNls::LogLevel::LogDebug, 400, 50); //"log-recognizer"
     if (-1 == ret) {
-        std::cout << "set log failed." << std::endl;
+        LOG_ERROR("set log failed.");
         return -1;
     }
 
