@@ -618,6 +618,12 @@ IBusEngine *create_engine_cb(IBusFactory *factory,
 
     return g_engine;
 }
+std::string g_akId="todo";
+std::string g_akSecret="todo";
+std::string g_token;
+long g_expireTime = 0;
+
+char url[DEFAULT_STRING_LEN];
 int startRecording() {
     int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
             "log-recognizer", AlibabaNls::LogLevel::LogDebug, 400, 50); //"log-recognizer"
@@ -632,13 +638,21 @@ int startRecording() {
 
     ParamStruct1 tst;
     memset(tst.appkey, 0, DEFAULT_STRING_LEN);
-    memset(tst.token, 0, DEFAULT_STRING_LEN);
     std::string appkey = "Y0ueIZ5N4OkyfpUW";
     std::string token = "1a9838b31cd5425b80f3f7677697c252";
+    std::time_t curTime = std::time(0);
+    if(g_expireTime == 0 || g_expireTime<curTime < 10)
+    {
+        if (-1 == generateToken(g_akId, g_akSecret, &g_token, &g_expireTime)) {
+            LOG_ERROR("failed to gen token");
+            return -1;
+        }
+        memset(tst.token, 0, DEFAULT_STRING_LEN);
+        memcpy(tst.token, g_token.c_str(), g_token.length());
+    }
     memcpy(tst.appkey, appkey.data(), appkey.size());
     tst.appkey[appkey.size()] = '\0';
-    memcpy(tst.token, token.data(), token.size());
-    tst.token[token.size()] = '\0';
+
     memset(tst.url, 0, DEFAULT_STRING_LEN);
 
     recognizeAudio(&tst);
@@ -651,7 +665,7 @@ int main(gint argc, gchar **argv)
 {
     signal(SIGTERM, sigterm_cb);
     signal(SIGINT, sigterm_cb);
-    myfile = fopen ("./log.txt", "a");
+    myfile = fopen ("/home/zhangfuwen/log.txt", "a");
 
     ibus_init();
     bus = ibus_bus_new();
