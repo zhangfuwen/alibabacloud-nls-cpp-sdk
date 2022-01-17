@@ -247,7 +247,10 @@ bool DictTrie::load_dict(const char *filename, LemmaIdType start_id,
 
   FILE *fp = fopen(filename, "rb");
   if (NULL == fp)
-    return false;
+  {
+      printf("failed to %s:%d %s\n", __FILE__, __LINE__, filename);
+      return false;
+  }
 
   free_resource(true);
 

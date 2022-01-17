@@ -122,20 +122,32 @@ void MatrixSearch::free_resource() {
 
 bool MatrixSearch::init(const char *fn_sys_dict, const char *fn_usr_dict) {
   if (NULL == fn_sys_dict || NULL == fn_usr_dict)
-    return false;
+  {
+
+      printf("failed to 1");
+      return false;
+  }
 
   if (!alloc_resource())
-    return false;
+  {
+      printf("failed to %s:%d", __FILE__, __LINE__);
+      return false;
+  }
 
   if (!dict_trie_->load_dict(fn_sys_dict, 1, kSysDictIdEnd))
-    return false;
+  {
+      printf("failed to %s:%d", __FILE__, __LINE__);
+      return false;
+  }
 
   // If engine fails to load the user dictionary, reset the user dictionary
   // to NULL.
   if (!user_dict_->load_dict(fn_usr_dict, kUserDictIdStart, kUserDictIdEnd)) {
-    delete user_dict_;
+      printf("failed to %s:%d", __FILE__, __LINE__);
+      delete user_dict_;
     user_dict_ = NULL;
   } else{
+      printf("failed to %s:%d", __FILE__, __LINE__);
     user_dict_->set_total_lemma_count_of_others(NGram::kSysDictTotalFreq);
   }
 

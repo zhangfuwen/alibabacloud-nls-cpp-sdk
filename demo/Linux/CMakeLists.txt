@@ -64,7 +64,7 @@ add_library(pinyin STATIC
         )
 
 add_executable(pinyintest pinyintest.cpp)
-target_link_libraries(pinyintest pinyin)
+target_link_libraries(pinyintest pinyin ${GLib2_LIBRARIES})
 
 add_executable(audio_ime profile_scan.cpp speechRecognizerDemo.cpp)
 target_link_libraries(audio_ime

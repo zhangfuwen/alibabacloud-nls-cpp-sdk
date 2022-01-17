@@ -40,6 +40,7 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 #include <pulse/gccmacro.h>
+#include <cctype>
 
 #define BUFSIZE 1024
 
@@ -59,6 +60,7 @@
 #include <stdio.h>
 #include <thread>
 #include <fcntl.h>
+#include <pinyinime.h>
 
 FILE* myfile;
 
@@ -489,7 +491,7 @@ void engine_commit_text(IBusEngine * engine, IBusText * text) {
 
 std::string getIndicatingMsg()
 {
-    std::string msg = "press space to toggle record[";
+    std::string msg = "press C-` to toggle record[";
     if(recording) {
         msg += "recording " + std::to_string(recordingTime);
     }
@@ -507,13 +509,13 @@ void updateIndicator() {
     ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(getIndicatingMsg().c_str()), TRUE); 
 //    ibus_lookup_table_set_cursor_pos(g_table, 0);
 }
-
+std::string wbpy_input;
 gboolean engine_process_key_event_cb(IBusEngine *engine,
                                      guint keyval,
                                      guint keycode,
                                      guint state)
 {
-    LOG_INFO("engine_process_key_event keycode: %d, keyval:%d", keycode, keyval);
+    LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
 
     if(state & IBUS_RELEASE_MASK) {
         return FALSE;
@@ -534,11 +536,14 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
             waiting = true;
             //engine_commit_text(engine, ibus_text_new_from_string(audio_text.c_str()));
         }
-        ibus_engine_show_lookup_table(engine);
+        ibus_engine_hide_lookup_table(engine);
         ibus_engine_show_preedit_text(engine);
         ibus_engine_show_auxiliary_text(engine);
         updateIndicator();
         return true;
+    }
+    if(state & IBUS_CONTROL_MASK) {
+        return false;
     }
 
     // other key inputs
@@ -547,9 +552,125 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
         return true;
     }
 
+
     if(state & IBUS_LOCK_MASK) {
+        if(keycode == 58) {
+            LOG_INFO("caps lock pressed");
+            // caps lock
+//            wbpy_input="";
+//            ibus_lookup_table_clear(g_table);
+//            ibus_engine_hide_lookup_table(engine);
+//            ibus_engine_hide_preedit_text(engine);
+//            ibus_engine_hide_auxiliary_text(engine);
+            return true;
+        }
+        if(keyval == IBUS_KEY_equal || keyval == IBUS_KEY_Right) {
+            LOG_DEBUG("equal pressed");
+            ibus_lookup_table_page_down(g_table);
+            int cursor = ibus_lookup_table_get_cursor_in_page(g_table);
+            LOG_INFO("cursor pos %d", cursor);
+            cursor = ibus_lookup_table_get_cursor_pos(g_table);
+            LOG_INFO("cursor pos(global) %d", cursor);
+            ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
+//            ibus_engine_forward_key_event(g_engine, keyval, keycode, state);
+            return true;
+        }
+        if(keyval == IBUS_KEY_minus || keyval == IBUS_KEY_Left) {
+            LOG_DEBUG("minus pressed");
+            ibus_lookup_table_page_up(g_table);
+            int cursor = ibus_lookup_table_get_cursor_in_page(g_table);
+            LOG_INFO("cursor pos %d", cursor);
+            cursor = ibus_lookup_table_get_cursor_pos(g_table);
+            LOG_INFO("cursor pos(global) %d", cursor);
+            ibus_lookup_table_set_cursor_pos(g_table, 3);
+            ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
+            return true;
+        }
+        if(keyval == IBUS_KEY_Down) {
+            LOG_DEBUG("down pressed");
+//ibus_lookup_table_cursor_down(g_table);
+            bool ret = ibus_lookup_table_cursor_down(g_table);
+            if(!ret) {
+                LOG_ERROR("failed to put cursor down");
+            }
+            int cursor = ibus_lookup_table_get_cursor_in_page(g_table);
+            LOG_INFO("cursor pos %d", cursor);
+            cursor = ibus_lookup_table_get_cursor_pos(g_table);
+            LOG_INFO("cursor pos(global) %d", cursor);
+            ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
+            return true;
+        }
+        if(keyval == IBUS_KEY_Up) {
+            LOG_DEBUG("up pressed");
+            bool ret = ibus_lookup_table_cursor_up(g_table);
+            if(!ret) {
+                LOG_ERROR("failed to put cursor up");
+            }
+            int cursor = ibus_lookup_table_get_cursor_in_page(g_table);
+            LOG_INFO("cursor pos %d", cursor);
+            cursor = ibus_lookup_table_get_cursor_pos(g_table);
+            LOG_INFO("cursor pos(global) %d", cursor);
+            ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
+            return true;
+        }
+        if(keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return || std::isdigit((char)(keyval))) {
+            if(wbpy_input.empty()) {
+                return false;
+            }
+            LOG_DEBUG("space pressed");
+            int cursor = ibus_lookup_table_get_cursor_pos(g_table);
+            if(std::isdigit((char)keyval)) {
+                int cursor_page = ibus_lookup_table_get_cursor_in_page(g_table);
+                int index = (int)(keyval - IBUS_KEY_0);
+                cursor = cursor + (index - cursor_page) -1;
+                LOG_DEBUG("cursor_page:%d, index:%d, cursor:%d", cursor_page, index, cursor);
+                ibus_lookup_table_set_cursor_pos(g_table, cursor);
+            }
+            auto text = ibus_lookup_table_get_candidate(g_table, cursor);
+            ibus_engine_commit_text(engine, text);
+            ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(""), true);
+            ibus_lookup_table_clear(g_table);
+            ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
+            ibus_engine_hide_lookup_table(g_engine);
+            ibus_engine_hide_auxiliary_text(g_engine);
+            ibus_engine_hide_preedit_text(g_engine);
+            wbpy_input="";
+            return true;
+        }
+
+        LOG_DEBUG("keyval %x, wbpy_input.size:%d", keyval, wbpy_input.size());
+        if(keyval == IBUS_KEY_BackSpace && !wbpy_input.empty()) {
+            wbpy_input = wbpy_input.substr(0,wbpy_input.size()-1);
+        } else {
+            if(!std::isalpha((char)keyval)) {
+                // only process letters and numbers
+                return false;
+            }
+            wbpy_input += std::tolower((char)keyval);
+        }
         // chinese mode
-        return false;
+        ime_pinyin::char16 buffer[40];
+        ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(wbpy_input.c_str()), true);
+        int numCandidates = ime_pinyin::im_search(wbpy_input.c_str(), wbpy_input.size());
+        LOG_INFO("num candidates %d for %s\n", numCandidates, wbpy_input.c_str());
+        ibus_lookup_table_clear(g_table);
+        for(int j =0; j< numCandidates; j++) {
+            auto cand_size = ime_pinyin::im_get_candidate(j, buffer, 40);
+            char bu[]="你好";
+            glong items_read;
+            glong items_written;
+            GError *error;
+            gunichar * utf32_str = g_utf16_to_ucs4(buffer, (glong)cand_size, &items_read, &items_written, &error);
+            ibus_engine_show_lookup_table(engine);
+            ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_ucs4(utf32_str));
+//            LOG_INFO("utf32(%d):%s\n", items_written, utf32_str);
+            char * utf8_str = g_utf16_to_utf8(buffer, (glong)cand_size, &items_read, &items_written, &error);
+//            LOG_INFO("utf8(%d):%s\n", items_written, utf8_str);
+        }
+        ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE);
+        ibus_engine_show_lookup_table(engine);
+
+        return true;
 
     } else {
         // english mode
@@ -570,14 +691,21 @@ void engine_enable_cb(IBusEngine *engine)
     LOG_INFO("table %p", g_table);
     g_object_ref_sink(g_table);
 
+    ibus_lookup_table_set_round(g_table, true);
+    ibus_lookup_table_set_page_size(g_table, 5);
     ibus_lookup_table_set_orientation(g_table, IBUS_ORIENTATION_VERTICAL);
-    ibus_engine_show_lookup_table(engine);
-    ibus_engine_show_auxiliary_text(engine);
+//ibus_engine_show_lookup_table(engine);
+//    ibus_engine_show_auxiliary_text(engine);
+    bool ret = ime_pinyin::im_open_decoder("/usr/local/share/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
+    if(!ret) {
+        LOG_ERROR("failed to open decoder\n");
+    }
 }
 
 void engine_disable_cb(IBusEngine *engine)
 {
     LOG_INFO("[IM:iBus]: IM disabled\n");
+    ime_pinyin::im_close_decoder();
 }
 
 void engine_focus_out_cb(IBusEngine *engine)
@@ -593,9 +721,11 @@ void engine_focus_out_cb(IBusEngine *engine)
 void engine_candidate_clicked_cb(IBusEngine *engine, guint index, guint button, guint state)
 {
     LOG_INFO("[IM:iBus]: candidate clicked\n");
-    ibus_engine_commit_text(engine, ibus_text_new_from_string("sss"));
-    //   IBusText *text = ibus_lookup_table_get_candidate(table, index);
-    //   riti_context_candidate_committed(ctx, index);
+    IBusText *text = ibus_lookup_table_get_candidate(g_table, index);
+    ibus_engine_commit_text(engine, text);
+    ibus_lookup_table_clear(g_table);
+    ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(""), true);
+    wbpy_input="";
 }
 
 IBusEngine *create_engine_cb(IBusFactory *factory,
@@ -620,6 +750,7 @@ IBusEngine *create_engine_cb(IBusFactory *factory,
 
     return g_engine;
 }
+
 std::string g_akId="todo";
 std::string g_akSecret="todo";
 std::string g_token;
