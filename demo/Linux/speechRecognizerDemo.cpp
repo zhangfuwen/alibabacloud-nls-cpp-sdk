@@ -42,6 +42,15 @@
 #include <pulse/gccmacro.h>
 #include <cctype>
 
+
+#include <stdio.h>
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <map>
+
+const int ALPHABET_SIZE = 26;
+
 #define BUFSIZE 1024
 
 #define SELF_TESTING_TRIGGER
@@ -89,6 +98,125 @@ volatile bool waiting = false; //waiting for converted text from internet
 void updateIndicator();
 
 std::string audio_text = "";
+
+
+// trie node
+struct TrieNode
+{
+    struct TrieNode *children[ALPHABET_SIZE];
+
+    // isEndOfWord is true if the node represents
+    // end of a word
+    bool isEndOfWord;
+    std::string word;
+    std::map<uint64_t, std::string> values;
+};
+
+// Returns new trie node (initialized to NULLs)
+struct TrieNode *NewNode(void)
+{
+    struct TrieNode *pNode =  new TrieNode;
+
+    pNode->isEndOfWord = false;
+
+    for (int i = 0; i < ALPHABET_SIZE; i++)
+        pNode->children[i] = NULL;
+
+    return pNode;
+}
+
+// If not present, inserts key into trie
+// If the key is prefix of trie node, just
+// marks leaf node
+void insert(struct TrieNode *root, std::string key, std::string value, uint64_t freq)
+{
+    struct TrieNode *pCrawl = root;
+
+    for (int i = 0; i < key.length(); i++)
+    {
+        int index = key[i] - 'a';
+        if (!pCrawl->children[index])
+            pCrawl->children[index] = NewNode();
+
+        pCrawl = pCrawl->children[index];
+    }
+
+    // mark last node as leaf
+    pCrawl->isEndOfWord = true;
+    pCrawl->word = key;
+    pCrawl->values.insert({freq, value});
+
+}
+
+// Returns true if key presents in trie, else
+// false
+TrieNode* search(struct TrieNode *root, std::string key)
+{
+    if(root == NULL) {
+        return NULL;
+    }
+    struct TrieNode *pCrawl = root;
+
+    for (int i = 0; i < key.length(); i++)
+    {
+        int index = key[i] - 'a';
+        if (!pCrawl->children[index])
+            return NULL;
+
+        pCrawl = pCrawl->children[index];
+    }
+
+    return pCrawl;
+}
+
+void traversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
+    if(root == NULL) {
+        return;
+    }
+    for(int index = 0; index < ALPHABET_SIZE; index++) {
+        if(root->children[index] && root->children[index]->isEndOfWord) {
+            for(auto pair : root->children[index]->values) {
+                auto freq = pair.first;
+                auto value = pair.second;
+                m.insert({freq, value});
+            }
+        }
+        traversal(m, root->children[index]);
+    }
+}
+TrieNode * g_root=NULL;
+
+void init_wubi_table() {
+    g_root = NewNode();
+
+    std::string s1;
+    s1.reserve(256);
+    bool has_began = false;
+
+    for(std::ifstream f2("/usr/share/ibus-table/data/wubi86.txt"); getline(f2,s1); ) {
+        if(s1 == "BEGIN_TABLE") {
+            has_began = true;
+            continue;
+        }
+        if(!has_began) {
+            continue;
+        }
+        if(s1 == "END_TABLE") {
+            continue;
+        }
+        int first_space = s1.find_first_of(" \t");
+        std::string key = s1.substr(0, first_space);
+        s1 = s1.substr(first_space + 1);
+        int second_space = s1.find_first_of("\t");
+        std::string value = s1.substr(0, second_space);
+        std::string freq_str = s1.substr(second_space+1);
+        uint64_t freq = std::atoll(freq_str.c_str());
+        insert(g_root, key, value, freq);
+    }
+
+}
+
+
 /**
  * 全局维护一个服务鉴权token和其对应的有效期时间戳，
  * 每次调用服务之前，首先判断token是否已经过期，
@@ -613,7 +741,7 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
             ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
             return true;
         }
-        if(keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return || std::isdigit((char)(keyval))) {
+        if(keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return || std::isdigit((char)(keyval)) || keycode == 1) {
             if(wbpy_input.empty()) {
                 return false;
             }
@@ -627,7 +755,9 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
                 ibus_lookup_table_set_cursor_pos(g_table, cursor);
             }
             auto text = ibus_lookup_table_get_candidate(g_table, cursor);
-            ibus_engine_commit_text(engine, text);
+            if(keycode != 1) {// which means escape
+                ibus_engine_commit_text(engine, text);
+            }
             ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(""), true);
             ibus_lookup_table_clear(g_table);
             ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
@@ -649,24 +779,59 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
             wbpy_input += std::tolower((char)keyval);
         }
         // chinese mode
-        ime_pinyin::char16 buffer[40];
         ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(wbpy_input.c_str()), true);
+
+        // get pinyin candidates
+        ime_pinyin::char16 buffer[40];
         int numCandidates = ime_pinyin::im_search(wbpy_input.c_str(), wbpy_input.size());
         LOG_INFO("num candidates %d for %s\n", numCandidates, wbpy_input.c_str());
+
+        // get wubi candidates
+        LOG_DEBUG("");
+        TrieNode * x = search(g_root, wbpy_input);
+        std::map<uint64_t, std::string> m;
+        traversal(m, x);
+
         ibus_lookup_table_clear(g_table);
-        for(int j =0; j< numCandidates; j++) {
-            auto cand_size = ime_pinyin::im_get_candidate(j, buffer, 40);
-            char bu[]="你好";
-            glong items_read;
-            glong items_written;
-            GError *error;
-            gunichar * utf32_str = g_utf16_to_ucs4(buffer, (glong)cand_size, &items_read, &items_written, &error);
-            ibus_engine_show_lookup_table(engine);
-            ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_ucs4(utf32_str));
-//            LOG_INFO("utf32(%d):%s\n", items_written, utf32_str);
-            char * utf8_str = g_utf16_to_utf8(buffer, (glong)cand_size, &items_read, &items_written, &error);
-//            LOG_INFO("utf8(%d):%s\n", items_written, utf8_str);
+        if(x!= NULL && x->isEndOfWord) {
+            auto it = x->values.rbegin();
+            std::string candidate =  it->second;
+            // best exact match first
+            auto text = ibus_text_new_from_string(candidate.c_str());
+            ibus_lookup_table_append_candidate(g_table, text);
+            it++;
+            // put the rest in the queue
+            while(it!= x->values.rend()) {
+                m.insert(*it);
+                it++;
+            }
         }
+
+        int j = 0;
+        LOG_INFO("map size:%d", m.size());
+        auto it = m.rbegin();
+        while(true) {
+            if(j>=numCandidates && it == m.rend()) {
+                break;
+            }
+            if(it != m.rend()) {
+                auto value = it->second;
+                std::string candidate =  value;
+                auto text = ibus_text_new_from_string(candidate.c_str());
+                ibus_lookup_table_append_candidate(g_table, text);
+                it++;
+            }
+            if(j<numCandidates) {
+                auto cand_size = ime_pinyin::im_get_candidate(j, buffer, 40);
+                glong items_read;
+                glong items_written;
+                GError *error;
+                gunichar * utf32_str = g_utf16_to_ucs4(buffer, (glong)cand_size, &items_read, &items_written, &error);
+                ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_ucs4(utf32_str));
+                j++;
+            }
+        }
+
         ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE);
         ibus_engine_show_lookup_table(engine);
 
@@ -696,7 +861,7 @@ void engine_enable_cb(IBusEngine *engine)
     ibus_lookup_table_set_orientation(g_table, IBUS_ORIENTATION_VERTICAL);
 //ibus_engine_show_lookup_table(engine);
 //    ibus_engine_show_auxiliary_text(engine);
-    bool ret = ime_pinyin::im_open_decoder("/usr/local/share/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
+    bool ret = ime_pinyin::im_open_decoder("/usr/share/ibus-table/data/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
     if(!ret) {
         LOG_ERROR("failed to open decoder\n");
     }
@@ -748,6 +913,7 @@ IBusEngine *create_engine_cb(IBusFactory *factory,
     g_signal_connect(g_engine, "focus-out", G_CALLBACK(engine_focus_out_cb), NULL);
     g_signal_connect(g_engine, "candidate-clicked", G_CALLBACK(engine_candidate_clicked_cb), NULL);
 
+    init_wubi_table();
     return g_engine;
 }
 
