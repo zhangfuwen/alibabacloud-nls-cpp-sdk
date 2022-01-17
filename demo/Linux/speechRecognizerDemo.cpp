@@ -501,10 +501,11 @@ std::string getIndicatingMsg()
 }
 
 void updateIndicator() {
-    ibus_lookup_table_clear(g_table);
-    ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string(getIndicatingMsg().c_str()));
-    ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE); // this line determines if lookup table is displayed
-    ibus_lookup_table_set_cursor_pos(g_table, 0);
+//    ibus_lookup_table_clear(g_table);
+//    ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string(getIndicatingMsg().c_str()));
+//    ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE); // this line determines if lookup table is displayed
+    ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(getIndicatingMsg().c_str()), TRUE); 
+//    ibus_lookup_table_set_cursor_pos(g_table, 0);
 }
 
 gboolean engine_process_key_event_cb(IBusEngine *engine,
@@ -512,50 +513,51 @@ gboolean engine_process_key_event_cb(IBusEngine *engine,
                                      guint keycode,
                                      guint state)
 {
-    LOG_INFO("engine_process_key_event");
-    ibus_engine_show_lookup_table(engine);
-    ibus_engine_show_preedit_text(engine);
-    ibus_engine_show_auxiliary_text(engine);
+    LOG_INFO("engine_process_key_event keycode: %d, keyval:%d", keycode, keyval);
 
     if(state & IBUS_RELEASE_MASK) {
         return FALSE;
     }
 
-
-    switch (keyval)
-    {
-        case IBUS_KEY_space:
-            if(waiting) {
-                return TRUE;
-            }
-            if(!recording) {
-                recording = true;
-                std::thread t1([]() {
+    if((state & IBUS_CONTROL_MASK) && keycode == 41) {
+        if(waiting) {
+            return TRUE;
+        }
+        if(!recording) {
+            recording = true;
+            std::thread t1([]() {
                     startRecording();
-                });
-                t1.detach();
-            } else {
-                recording = false;
-                waiting = true;
-                //engine_commit_text(engine, ibus_text_new_from_string(audio_text.c_str()));
-            }
-            updateIndicator();
-            break;
-
-        default:
-            //updateIndicator();
-//            ibus_lookup_table_clear(g_table);
-//            ibus_lookup_table_append_candidate(g_table, ibus_text_new_from_string("say something"));
-////            ibus_lookup_table_append_candidate(table, ibus_text_new_from_string("hello"));
-//            ibus_engine_update_lookup_table_fast(engine, g_table, TRUE); // this line determines if lookup table is displayed
-////            ibus_engine_update_preedit_text(engine, ibus_text_new_from_string("xx"), 2, TRUE);
-//            ibus_lookup_table_set_cursor_pos(g_table, 0);
-            break;
+                    });
+            t1.detach();
+        } else {
+            recording = false;
+            waiting = true;
+            //engine_commit_text(engine, ibus_text_new_from_string(audio_text.c_str()));
+        }
+        ibus_engine_show_lookup_table(engine);
+        ibus_engine_show_preedit_text(engine);
+        ibus_engine_show_auxiliary_text(engine);
+        updateIndicator();
+        return true;
     }
 
-    //ibus_lookup_table_clear(table);
-    //ibus_engine_hide_lookup_table(engine);
-    return TRUE;
+    // other key inputs
+    if(recording || waiting) {
+        // don't respond to other key inputs when recording or waiting
+        return true;
+    }
+
+    if(state & IBUS_LOCK_MASK) {
+        // chinese mode
+        return false;
+
+    } else {
+        // english mode
+        ibus_engine_hide_lookup_table(engine);
+        ibus_engine_hide_preedit_text(engine);
+        ibus_engine_hide_auxiliary_text(engine);
+        return false;
+    }
 }
 
 

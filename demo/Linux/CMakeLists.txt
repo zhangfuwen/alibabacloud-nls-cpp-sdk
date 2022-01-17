@@ -43,12 +43,34 @@ else()
     message("glib2 not found")
 endif(GLib2_FOUND)
 
+include_directories(pinyin/include)
+add_library(pinyin STATIC
+        pinyin/dictbuilder.cpp
+        pinyin/dictlist.cpp
+        pinyin/dicttrie.cpp
+        pinyin/lpicache.cpp
+        pinyin/matrixsearch.cpp
+        pinyin/mystdlib.cpp
+        pinyin/ngram.cpp
+        pinyin/pinyinime.cpp
+        pinyin/searchutility.cpp
+        pinyin/spellingtable.cpp
+        pinyin/spellingtrie.cpp
+        pinyin/splparser.cpp
+        pinyin/sync.cpp
+        pinyin/userdict.cpp
+        pinyin/utf16char.cpp
+        pinyin/utf16reader.cpp
+        )
+
+add_executable(pinyintest pinyintest.cpp)
+target_link_libraries(pinyintest pinyin)
 
 add_executable(audio_ime profile_scan.cpp speechRecognizerDemo.cpp)
 target_link_libraries(audio_ime
     alibabacloud-idst-speech.a
     pthread z dl psl brotlidec pulse pulse-simple
-    ${IBus_LIBRARIES} ${GLib2_LIBRARIES})
+    ${IBus_LIBRARIES} ${GLib2_LIBRARIES} pinyin)
 
 SET(CPACK_GENERATOR "DEB")
 SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Dean") #required
@@ -60,6 +82,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpsl-dev, libpulse-dev, libbrotli-dev, ibus"
 INSTALL(FILES audio_ime.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(FILES audio_ime.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(TARGETS audio_ime DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES dict_pinyin.dat DESTINATION /usr/local/share/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES audio_ime.png DESTINATION share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 
 INCLUDE(CPack)
