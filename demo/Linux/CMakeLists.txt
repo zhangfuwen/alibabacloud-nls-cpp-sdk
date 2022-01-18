@@ -7,7 +7,6 @@ set(CMAKE_C_FLAGS "-O0 -fexceptions -fPIC -MMD -pg -g -ggdb")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fpermissive")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-narrowing")
 
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
 MESSAGE("c flag is ${CMAKE_C_FLAGS}")
 MESSAGE("os is ${CMAKE_SYSTEM}")
@@ -18,6 +17,7 @@ MESSAGE("CMAKE_SOURCE_DIR " ${CMAKE_SOURCE_DIR})
 
 include_directories(${CMAKE_SOURCE_DIR}/../../build/install/NlsSdk3.X_LINUX/include)
 link_directories(${CMAKE_SOURCE_DIR}/../../build/install/NlsSdk3.X_LINUX/lib)
+
 
 add_executable(pulse_record pulse_record.cpp)
 target_link_libraries(pulse_record pulse pulse-simple)
@@ -71,7 +71,17 @@ add_executable(audio_ime profile_scan.cpp speechRecognizerDemo.cpp)
 target_link_libraries(audio_ime
     alibabacloud-idst-speech.a
     pthread z dl psl brotlidec pulse pulse-simple
-    ${IBus_LIBRARIES} ${GLib2_LIBRARIES} pinyin)
+    ${IBus_LIBRARIES} ${GLib2_LIBRARIES}
+        pinyin)
+target_compile_definitions(audio_ime PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
+
+pkg_check_modules(GTKMM3 REQUIRED gtkmm-3.0)
+add_executable(audio_ime_setup ime_setup.cpp)
+target_include_directories(audio_ime_setup PRIVATE ${GTKMM3_INCLUDE_DIRS})
+message("gtkmm ${GTKMM3_INCLUDE_DIRS}")
+target_link_libraries(audio_ime_setup ${GTKMM3_LIBRARIES}
+        ${IBus_LIBRARIES} ${GLib2_LIBRARIES}
+        )
 
 SET(CPACK_GENERATOR "DEB")
 SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Dean") #required
@@ -83,6 +93,8 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpsl-dev, libpulse-dev, libbrotli-dev, ibus"
 INSTALL(FILES audio_ime.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(FILES audio_ime.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(TARGETS audio_ime DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(TARGETS audio_ime_setup DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES ime_setup.glade DESTINATION /usr/share/ibus/ibus-audio/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES dict_pinyin.dat DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES wubi86.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES wubi98.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )

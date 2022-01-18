@@ -99,7 +99,7 @@ class AtomDictBase {
    * the step information, and the MileStoneHandle objects returned by the
    * earliest calling of extend_dict() for that step.
    *
-   * If an atom dictionary does not implement incremental search, this function
+   * If an atom dictionary does not implement incremental TrieSearch, this function
    * can be totally ignored.
    *
    * @param from_step From which step(included) the MileStoneHandle

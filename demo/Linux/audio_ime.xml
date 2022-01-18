@@ -20,6 +20,8 @@
             <longname>Audio Input method</longname>
             <description>Audio Input method</description>
             <rank>0</rank>
+            <setup>audio_ime_setup</setup>
+            <custom>xxx</custom>
         </engine>
     </engines>
 </component>

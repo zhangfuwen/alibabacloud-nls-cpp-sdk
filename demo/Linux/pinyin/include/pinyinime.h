@@ -75,11 +75,11 @@ extern "C" {
   void im_flush_cache();
 
   /**
-   * Use a spelling string(Pinyin string) to search. The engine will try to do
-   * an incremental search based on its previous search result, so if the new
+   * Use a spelling string(Pinyin string) to TrieSearch. The engine will try to do
+   * an incremental search based on its previous TrieSearch result, so if the new
    * string has the same prefix with the previous one stored in the decoder,
-   * the decoder will only continue the search from the end of the prefix.
-   * If the caller needs to do a brand new search, please call im_reset_search()
+   * the decoder will only continue the TrieSearch from the end of the prefix.
+   * If the caller needs to do a brand new TrieSearch, please call im_reset_search()
    * first. Calling im_search() is equivalent to calling im_add_letter() one by
    * one.
    *
@@ -90,7 +90,7 @@ extern "C" {
   size_t im_search(const char* sps_buf, size_t sps_len);
 
   /**
-   * Make a delete operation in the current search result, and make research if
+   * Make a delete operation in the current TrieSearch result, and make research if
    * necessary.
    *
    * @param pos The posistion of char in spelling string to delete, or the
@@ -103,7 +103,7 @@ extern "C" {
                       bool clear_fixed_this_step);
 
   /**
-   * Reset the previous search result.
+   * Reset the previous TrieSearch result.
    */
   void im_reset_search();
 
@@ -177,7 +177,7 @@ extern "C" {
   size_t im_get_fixed_len();
 
   /**
-   * Cancel the input state and reset the search workspace.
+   * Cancel the input state and reset the TrieSearch workspace.
    */
   bool im_cancel_input();
 
