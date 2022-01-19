@@ -32,6 +32,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <unordered_map>
 
 #include "log.h"
 #include "nlsClient.h"
@@ -91,6 +92,13 @@ struct ParamCallBack1 {
     ParamStruct1 *tParam;
 };
 
+struct Candidate {
+    IBusText _text;
+    bool _isPinyin;
+    explicit Candidate(IBusText text, bool isPinyin = false): _text(text), _isPinyin(isPinyin)
+    {}
+};
+
 void engine_commit_text(IBusEngine *engine, IBusText *text);
 void IBusUpdateIndicator();
 
@@ -98,12 +106,12 @@ void IBusUpdateIndicator();
 static gint id = 0;
 static IBusEngine *g_engine = nullptr;
 static IBusLookupTable *g_table = nullptr;
+static std::vector<Candidate> candidates={};
 static IBusBus *g_bus;
 static IBusConfig *g_config = nullptr;
 
 volatile static bool recording = false; // currently recording user voice
-volatile static bool waiting =
-    false; // waiting for converted text from internet
+volatile static bool waiting = false; // waiting for converted text from internet
 volatile static long recordingTime = 0; // can only record 60 seconds;
 
 std::string audio_text;
@@ -111,6 +119,8 @@ std::string wbpy_input;
 guint mixed_input_state = 0;
 
 namespace wubi {
+
+bool searchCode = true;
 // trie node
 struct TrieNode {
     struct TrieNode *children[ALPHABET_SIZE] = {};
@@ -121,6 +131,8 @@ struct TrieNode {
     std::string word;
     std::map<uint64_t, std::string> values = {};
 };
+
+std::unordered_map<std::string, std::string> codeSearcher;
 
 // Returns new trie node (initialized to nullptrs)
 struct TrieNode *NewNode() {
@@ -190,6 +202,13 @@ void TrieTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
         TrieTraversal(m, index);
     }
 }
+std::string CodeSearch(const std::string& text) {
+    if(codeSearcher.count(text)) {
+        return codeSearcher[text];
+    }
+
+    return "";
+}
 
 void TrieImportWubiTable() {
     g_root = NewNode();
@@ -213,11 +232,14 @@ void TrieImportWubiTable() {
         auto first_space = s1.find_first_of(" \t");
         std::string key = s1.substr(0, first_space);
         s1 = s1.substr(first_space + 1);
-        auto second_space = s1.find_first_of("\t");
+        auto second_space = s1.find_first_of('\t');
         std::string value = s1.substr(0, second_space);
         std::string freq_str = s1.substr(second_space + 1);
         uint64_t freq = std::stoll(freq_str);
         TrieInsert(g_root, key, value, freq);
+        if(searchCode) {
+            codeSearcher.insert({value, key});
+        }
     }
 }
 
@@ -284,7 +306,8 @@ void OnRecognitionStarted(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
  * @return
  */
 
-void OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
+void OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent,
+                                [[maybe_unused]] void *cbParam) {
     LOG_INFO("result changed");
     ibus_engine_update_preedit_text(
         g_engine, ibus_text_new_from_string(cbEvent->getResult()), 0, TRUE);
@@ -492,12 +515,13 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
 
     static const pa_sample_spec ss = {
         .format = PA_SAMPLE_S16LE, .rate = 16000, .channels = 1};
-    pa_simple *s = nullptr;
     int error;
 
+    LOG_DEBUG("pa_simple_new");
+    pa_simple * s = pa_simple_new(nullptr, "audio_ime", PA_STREAM_RECORD, nullptr,
+                  "record", &ss, nullptr, nullptr, &error);
     /* Create the recording stream */
-    if (!(s = pa_simple_new(nullptr, "audio_ime", PA_STREAM_RECORD, nullptr,
-                            "record", &ss, nullptr, nullptr, &error))) {
+    if (!s) {
         LOG_INFO("pa_simple_new() failed: %s\n", pa_strerror(error));
         return -5;
     }
@@ -505,6 +529,8 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
     struct timeval x {};
     gettimeofday(&x, nullptr);
 
+
+    LOG_DEBUG("recording %d", recording);
     while (recording) {
         struct timeval y {};
         gettimeofday(&y, nullptr);
@@ -517,8 +543,8 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
             break;
         }
         uint8_t buf[BUFSIZE];
-
         /* Record some data ... */
+        LOG_DEBUG("reading %d", recording);
         if (pa_simple_read(s, buf, sizeof(buf), &error) < 0) {
             LOG_INFO("pa_simple_read() failed: %s\n", pa_strerror(error));
             break;
@@ -532,6 +558,7 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
          *    若希望用省流量的opus格式上传音频数据, 则第三参数传入ENCODER_OPU
          *    ENCODER_OPU/ENCODER_OPUS模式时,nlen必须为640
          */
+        LOG_DEBUG("send audio %d", recording);
         ret = request->sendAudio(buf, sizeof(buf), (ENCODER_TYPE)encoder_type);
         if (ret < 0) {
             // 发送失败, 退出循环数据发送
@@ -562,6 +589,7 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
         pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord),
                                &outtime);
         pthread_mutex_unlock(&(cbParam->mtxWord));
+        LOG_INFO("wait closed callback done.");
     } else {
         LOG_INFO("stop ret is %d", ret);
     }
@@ -586,16 +614,17 @@ int RecognitionPrepareAndStartRecording() {
     memset(tst.appkey, 0, DEFAULT_STRING_LEN);
     std::string appkey = "Y0ueIZ5N4OkyfpUW";
     std::string token = "1a9838b31cd5425b80f3f7677697c252";
-    std::time_t curTime = std::time(0);
-    if (g_expireTime == 0 || g_expireTime < curTime < 10) {
+    std::time_t curTime = std::time(nullptr);
+    if (g_expireTime == 0 || g_expireTime - curTime < 10) {
+        LOG_DEBUG("generating new token %lu %lu", g_expireTime, curTime);
         if (-1 ==
             NetGenerateToken(g_akId, g_akSecret, &g_token, &g_expireTime)) {
             LOG_ERROR("failed to gen token");
             return -1;
         }
-        memset(tst.token, 0, DEFAULT_STRING_LEN);
-        memcpy(tst.token, g_token.c_str(), g_token.length());
     }
+    memset(tst.token, 0, DEFAULT_STRING_LEN);
+    memcpy(tst.token, g_token.c_str(), g_token.length());
     memcpy(tst.appkey, appkey.data(), appkey.size());
     tst.appkey[appkey.size()] = '\0';
 
@@ -608,19 +637,19 @@ int RecognitionPrepareAndStartRecording() {
 }; // namespace speech
 
 namespace pinyin {
-    guint Search(std::string input) {
+    guint Search(const std::string& input) {
         auto numCandidates =
             ime_pinyin::im_search(input.c_str(), input.size());
         return numCandidates;
     }
     std::wstring GetCandidate(int index) {
-        ime_pinyin::char16 buffer[40];
-        auto ret = ime_pinyin::im_get_candidate(index, buffer, 40);
+        ime_pinyin::char16 buffer[240];
+        auto ret = ime_pinyin::im_get_candidate(index, buffer, 240);
         if(ret == nullptr) {
             return {};
         }
 
-        return std::wstring((wchar_t*)buffer, 40);
+        return {(wchar_t*)buffer, 240};
     }
 }
 static void sigterm_cb(int sig) {
@@ -628,7 +657,8 @@ static void sigterm_cb(int sig) {
     exit(-1);
 }
 
-static void IBusOnDisconnectedCb(IBusBus *bus, gpointer user_data) {
+static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus,
+                                 [[maybe_unused]] gpointer user_data) {
     ibus_quit();
 }
 
@@ -660,6 +690,35 @@ void IBusUpdateIndicator() {
     ibus_engine_update_auxiliary_text(
         g_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg().c_str()),
         TRUE);
+}
+
+void candidateSelected(guint index, bool ignoreText = false) {
+    auto text = ibus_lookup_table_get_candidate(g_table, index);
+
+    if(candidates[index]._isPinyin) {
+        std::string code = wubi::CodeSearch(text->text);
+        if(code.empty()) {
+            ibus_engine_hide_auxiliary_text(g_engine);
+        } else {
+            std::string hint = "五笔[" + code + "]";
+            ibus_engine_update_auxiliary_text(g_engine,
+                                              ibus_text_new_from_string(hint.c_str()),
+                                              true);
+            LOG_INFO("cursor:%d, text:%s, wubi code:%s - %d", index, text->text, code.c_str(), code.size());
+        }
+    }else {
+        LOG_INFO("cursor:%d, text:%s, is not pinyin", index, text->text);
+        ibus_engine_hide_auxiliary_text(g_engine);
+    }
+    if (!ignoreText) { // which means escape
+        ibus_engine_commit_text(g_engine, text);
+    }
+    ibus_lookup_table_clear(g_table);
+    ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
+    ibus_engine_hide_lookup_table(g_engine);
+    ibus_engine_hide_preedit_text(g_engine);
+    wbpy_input.clear();
+    candidates.clear();
 }
 
 gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
@@ -780,18 +839,7 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
                           index, cursor);
                 ibus_lookup_table_set_cursor_pos(g_table, cursor);
             }
-            auto text = ibus_lookup_table_get_candidate(g_table, cursor);
-            if (keycode != 1) { // which means escape
-                ibus_engine_commit_text(engine, text);
-            }
-            ibus_engine_update_auxiliary_text(
-                g_engine, ibus_text_new_from_string(""), true);
-            ibus_lookup_table_clear(g_table);
-            ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
-            ibus_engine_hide_lookup_table(g_engine);
-            ibus_engine_hide_auxiliary_text(g_engine);
-            ibus_engine_hide_preedit_text(g_engine);
-            wbpy_input = "";
+            candidateSelected(cursor, keycode == 1);
             return true;
         }
 
@@ -811,26 +859,28 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
 
         // get pinyin candidates
         auto numCandidates = pinyin::Search(wbpy_input);
-        LOG_INFO("num candidates %lu for %s\n", numCandidates,
+        LOG_INFO("num candidates %u for %s\n", numCandidates,
                  wbpy_input.c_str());
 
         // get wubi candidates
         LOG_DEBUG("");
         wubi::TrieNode *x = wubi::TrieSearch(wubi::g_root, wbpy_input);
         std::map<uint64_t, std::string> m;
-        wubi::TrieTraversal(m, x);
+        wubi::TrieTraversal(m, x); // insert subtree and reorder
 
         ibus_lookup_table_clear(g_table);
+        candidates.clear();
         if (x != nullptr && x->isEndOfWord) {
             auto it = x->values.rbegin();
             std::string candidate = it->second;
             // best exact match first
             auto text = ibus_text_new_from_string(candidate.c_str());
+            candidates.emplace_back(*text);
             ibus_lookup_table_append_candidate(g_table, text);
+            LOG_INFO("first %s", text->text);
             it++;
-            // put the rest in the queue
             while (it != x->values.rend()) {
-                m.insert(*it);
+                m.insert(*it); // insert to reorder
                 it++;
             }
         }
@@ -846,6 +896,7 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
                 auto value = it->second;
                 std::string &candidate = value;
                 auto text = ibus_text_new_from_string(candidate.c_str());
+                candidates.emplace_back(*text);
                 ibus_lookup_table_append_candidate(g_table, text);
                 it++;
             }
@@ -856,13 +907,22 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
                 GError *error;
                 gunichar *utf32_str =
                     g_utf16_to_ucs4(
-                    reinterpret_cast<const gunichar2 *>(buffer.data()), buffer.size(), &items_read,
-                                    &items_written, &error);
-                ibus_lookup_table_append_candidate(
-                    g_table, ibus_text_new_from_ucs4(utf32_str));
+                        reinterpret_cast<const gunichar2 *>(buffer.data()),
+                        buffer.size(),
+                        &items_read,
+                        &items_written,
+                        &error);
+                auto text = ibus_text_new_from_ucs4(utf32_str);
+                candidates.emplace_back(* text,true);
+                ibus_lookup_table_append_candidate(g_table, text);
                 j++;
             }
         }
+        /*
+        for(auto cand : candidates) {
+             ibus_lookup_table_append_candidate(g_table, &cand._text);
+        }
+         */
 
         ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE);
         ibus_engine_show_lookup_table(engine);
@@ -945,15 +1005,11 @@ void IBusEnginePropertyActivateCb(IBusEngine *engine, gchar *name, guint state,
     }
 }
 
+
 void IBusEngineCandidateClickedCb(IBusEngine *engine, guint index, guint button,
                                   guint state) {
     LOG_INFO("[IM:iBus]: candidate clicked\n");
-    IBusText *text = ibus_lookup_table_get_candidate(g_table, index);
-    ibus_engine_commit_text(engine, text);
-    ibus_lookup_table_clear(g_table);
-    ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(""),
-                                      true);
-    wbpy_input = "";
+    candidateSelected(index);
 }
 
 void IBusConfigValueChangedCb(IBusConfig *config, gchar *section, gchar *name,
@@ -997,6 +1053,8 @@ IBusEngine *IBusEngineCreatedCb(IBusFactory *factory, gchar *engine_name,
 int main([[maybe_unused]] gint argc, gchar **argv) {
     signal(SIGTERM, sigterm_cb);
     signal(SIGINT, sigterm_cb);
+    signal(SIGSEGV, signal_handler);
+    log_init();
 
     ibus_init();
     g_bus = ibus_bus_new();
