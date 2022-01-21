@@ -99,8 +99,6 @@ void IBusUpdateIndicator();
 
 void IBusConfigSetup(GDBusConnection *conn);
 static gint id = 0;
-static IBusEngine *g_engine = nullptr;
-static IBusLookupTable *g_table = nullptr;
 static std::vector<Candidate> candidates = {};
 static IBusBus *g_bus;
 static IBusConfig *g_config = nullptr;
@@ -116,9 +114,33 @@ volatile bool g_wubi86_table = false;
 volatile bool g_wubi98_table = false;
 volatile bool g_pinyin_table = true;
 
+namespace pinyin {
+class Pinyin {
+  public:
+    Pinyin() {
+        bool ret = ime_pinyin::im_open_decoder("/usr/share/ibus-table/data/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
+    }
+    guint Search(const std::string &input) {
+        auto numCandidates = ime_pinyin::im_search(input.c_str(), input.size());
+        return numCandidates;
+    }
+    std::wstring GetCandidate(int index) {
+        ime_pinyin::char16 buffer[240];
+        auto ret = ime_pinyin::im_get_candidate(index, buffer, 240);
+        if (ret == nullptr) {
+            return {};
+        }
+
+        return {(wchar_t *)buffer, 240};
+    }
+    ~Pinyin() {
+        ime_pinyin::im_close_decoder();
+    }
+};
+} // namespace pinyin
+
 namespace wubi {
 
-bool searchCode = true;
 // trie node
 struct TrieNode {
     struct TrieNode *children[ALPHABET_SIZE] = {};
@@ -129,8 +151,6 @@ struct TrieNode {
     std::string word;
     std::map<uint64_t, std::string> values = {};
 };
-
-std::unordered_map<std::string, std::string> g_wubiCodeSearcher; // chinese to zigen table
 
 // Returns new trie node (initialized to nullptrs)
 struct TrieNode *NewNode() {
@@ -143,8 +163,6 @@ struct TrieNode *NewNode() {
 
     return pNode;
 }
-
-TrieNode *g_root = nullptr;
 // If not present, inserts key into trie
 // If the key is prefix of trie node, just
 // marks leaf node
@@ -165,8 +183,18 @@ void TrieInsert(struct TrieNode *root, const std::string &key, const std::string
     pCrawl->values.insert({freq, value});
 }
 
-// Returns true if key presents in trie, else
-// false
+void TrieTraverse(struct TrieNode *root, void (*fn)(struct TrieNode *node)) {
+    if (root == nullptr) {
+        return;
+    }
+    for (auto &node : root->children) {
+        if (node != nullptr) {
+            TrieTraverse(node, fn);
+        }
+    }
+    fn(root);
+}
+
 TrieNode *TrieSearch(struct TrieNode *root, const std::string &key) {
     if (root == nullptr) {
         return nullptr;
@@ -183,8 +211,7 @@ TrieNode *TrieSearch(struct TrieNode *root, const std::string &key) {
 
     return pCrawl;
 }
-
-void TrieTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
+void SubTreeTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
     if (root == nullptr) {
         return;
     }
@@ -196,64 +223,127 @@ void TrieTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
                 m.insert({freq, value});
             }
         }
-        TrieTraversal(m, index);
+        SubTreeTraversal(m, index);
     }
 }
-std::string CodeSearch(const std::string &text) {
-    if (!g_wubi86_table && !g_wubi98_table) {
-            LOG_DEBUG("wubi not enabled");
+
+// if (!g_wubi86_table && !g_wubi98_table) {
+// LOG_DEBUG("wubi not enabled");
+// return;
+// }
+// std::string dictPath = "/usr/share/ibus-table/data/wubi86.txt";
+// if (!g_wubi86_table) {
+// dictPath = "/usr/share/ibus-table/data/wubi98.txt";
+// }
+// LOG_INFO("wubi using table %s", dictPath.c_str());
+class Wubi {
+  public:
+    Wubi(std::string tablePath) {
+        m_trieRoot = NewNode();
+        std::string s1;
+        s1.reserve(256);
+        bool has_began = false;
+
+        for (std::ifstream f2(tablePath); getline(f2, s1);) {
+            if (s1 == "BEGIN_TABLE") {
+                has_began = true;
+                continue;
+            }
+            if (!has_began) {
+                continue;
+            }
+            if (s1 == "END_TABLE") {
+                continue;
+            }
+            auto first_space = s1.find_first_of(" \t");
+            std::string key = s1.substr(0, first_space);
+            s1 = s1.substr(first_space + 1);
+            auto second_space = s1.find_first_of('\t');
+            std::string value = s1.substr(0, second_space);
+            std::string freq_str = s1.substr(second_space + 1);
+            uint64_t freq = std::stoll(freq_str);
+            TrieInsert(m_trieRoot, key, value, freq);
+            if (m_searchCode) {
+                m_wubiCodeSearcher.insert({value, key});
+            }
+        }
+    }
+
+    TrieNode *Search(const std::string &key) { return TrieSearch(m_trieRoot, key); }
+    void TrieTraversal(std::map<uint64_t, std::string> &m) { SubTreeTraversal(m, m_trieRoot); }
+
+    std::string CodeSearch(const std::string &text) {
+        if (m_wubiCodeSearcher.count(text)) {
+            return m_wubiCodeSearcher[text];
+        }
+
         return "";
     }
-    if (g_wubiCodeSearcher.count(text)) {
-        return g_wubiCodeSearcher[text];
+
+    ~Wubi() {
+        TrieTraverse(m_trieRoot, [](struct TrieNode *node) { delete node; });
+        m_wubiCodeSearcher.clear();
     }
 
-    return "";
+  private:
+    TrieNode *m_trieRoot = nullptr;
+    std::unordered_map<std::string, std::string> m_wubiCodeSearcher; // chinese to zigen table
+    bool m_searchCode = true;
+    std::vector<Candidate> m_searchResult;
+};
 }
 
-void TrieImportWubiTable() {
-    g_root = NewNode();
 
-    if (!g_wubi86_table && !g_wubi98_table) {
-        LOG_DEBUG("wubi not enabled");
-        return;
+class Engine {
+    const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
+    const std::string wubi98DictPath = "/usr/share/ibus-table/data/wubi98.txt";
+    class Config {
+
+    };
+    class Property {
+
+    };
+  public:
+    Engine(gchar * engine_name) {
+        gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
+        g_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(g_bus));
+        // Setup Lookup table
+        LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
+        g_signal_connect(g_engine, "process-key-event", G_CALLBACK(IBusEngineProcessKeyEventCb), nullptr);
+        g_signal_connect(g_engine, "enable", G_CALLBACK(IBusEngineEnableCb), nullptr);
+        g_signal_connect(g_engine, "disable", G_CALLBACK(IBusEngineDisableCb), nullptr);
+        g_signal_connect(g_engine, "focus-out", G_CALLBACK(IBusEngineFocusOutCb), nullptr);
+        g_signal_connect(g_engine, "focus-in", G_CALLBACK(IBusEngineFocusInCb), nullptr);
+        g_signal_connect(g_engine, "candidate-clicked", G_CALLBACK(IBusEngineCandidateClickedCb), nullptr);
+        g_signal_connect(g_engine, "property-activate", G_CALLBACK(IBusEnginePropertyActivateCb), nullptr);
+        wubi = new wubi::Wubi(wubi86DictPath);
     }
-    std::string dictPath = "/usr/share/ibus-table/data/wubi86.txt";
-    if (!g_wubi86_table) {
-        dictPath = "/usr/share/ibus-table/data/wubi98.txt";
+
+    void Enable() {
+        g_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
+        LOG_INFO("table %p", g_table);
+        g_object_ref_sink(g_table);
+
+        ibus_lookup_table_set_round(g_table, true);
+        ibus_lookup_table_set_page_size(g_table, 5);
+        ibus_lookup_table_set_orientation(g_table, IBUS_ORIENTATION_VERTICAL);
+        pinyin = new pinyin::Pinyin();
     }
-    LOG_INFO("wubi using table %s", dictPath.c_str());
+    void Disable() {
+        delete pinyin;
 
-    std::string s1;
-    s1.reserve(256);
-    bool has_began = false;
-
-    for (std::ifstream f2(dictPath); getline(f2, s1);) {
-        if (s1 == "BEGIN_TABLE") {
-            has_began = true;
-            continue;
-        }
-        if (!has_began) {
-            continue;
-        }
-        if (s1 == "END_TABLE") {
-            continue;
-        }
-        auto first_space = s1.find_first_of(" \t");
-        std::string key = s1.substr(0, first_space);
-        s1 = s1.substr(first_space + 1);
-        auto second_space = s1.find_first_of('\t');
-        std::string value = s1.substr(0, second_space);
-        std::string freq_str = s1.substr(second_space + 1);
-        uint64_t freq = std::stoll(freq_str);
-        TrieInsert(g_root, key, value, freq);
-        if (searchCode) {
-            g_wubiCodeSearcher.insert({value, key});
-        }
     }
-}
+    ~Engine() {
 
-}; // namespace wubi
+    }
+  private:
+    IBusLookupTable *g_table = nullptr;
+    IBusEngine *g_engine = nullptr;
+    wubi::Wubi * wubi = nullptr;
+    pinyin::Pinyin * pinyin = nullptr;
+
+};
+Engine * m_engine;
 
 namespace speech {
 static int frame_size = FRAME_100MS;
@@ -632,21 +722,6 @@ int RecognitionPrepareAndStartRecording() {
 }
 }; // namespace speech
 
-namespace pinyin {
-guint Search(const std::string &input) {
-    auto numCandidates = ime_pinyin::im_search(input.c_str(), input.size());
-    return numCandidates;
-}
-std::wstring GetCandidate(int index) {
-    ime_pinyin::char16 buffer[240];
-    auto ret = ime_pinyin::im_get_candidate(index, buffer, 240);
-    if (ret == nullptr) {
-        return {};
-    }
-
-    return {(wchar_t *)buffer, 240};
-}
-} // namespace pinyin
 static void sigterm_cb(int sig) {
     LOG_ERROR("sig term %d", sig);
     exit(-1);
@@ -924,25 +999,13 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval, guint key
 void IBusEngineEnableCb([[maybe_unused]] IBusEngine *engine) {
     LOG_TRACE("Entry");
     // Setup Lookup table
-    g_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
-    LOG_INFO("table %p", g_table);
-    g_object_ref_sink(g_table);
-
-    ibus_lookup_table_set_round(g_table, true);
-    ibus_lookup_table_set_page_size(g_table, 5);
-    ibus_lookup_table_set_orientation(g_table, IBUS_ORIENTATION_VERTICAL);
-    // ibus_engine_show_lookup_table(engine);
-    //     ibus_engine_show_auxiliary_text(engine);
-    bool ret = ime_pinyin::im_open_decoder("/usr/share/ibus-table/data/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
-    if (!ret) {
-        LOG_ERROR("failed to open decoder");
-    }
+    m_engine->Enable();
     LOG_TRACE("Exit");
 }
 
 void IBusEngineDisableCb([[maybe_unused]] IBusEngine *engine) {
     LOG_TRACE("Entry");
-    ime_pinyin::im_close_decoder();
+    m_engine->Disable();
     LOG_TRACE("Exit");
 }
 
@@ -1035,24 +1098,11 @@ void IBusConfigValueChangedCb(IBusConfig *config, gchar *section, gchar *name, G
     LOG_TRACE("Exit");
 }
 
+
 IBusEngine *IBusEngineCreatedCb(IBusFactory *factory, gchar *engine_name, gpointer user_data) {
     LOG_TRACE("Entry");
     id += 1;
-    gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
-    g_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(g_bus));
-
-    // Setup Lookup table
-    LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
-
-    g_signal_connect(g_engine, "process-key-event", G_CALLBACK(IBusEngineProcessKeyEventCb), nullptr);
-    g_signal_connect(g_engine, "enable", G_CALLBACK(IBusEngineEnableCb), nullptr);
-    g_signal_connect(g_engine, "disable", G_CALLBACK(IBusEngineDisableCb), nullptr);
-    g_signal_connect(g_engine, "focus-out", G_CALLBACK(IBusEngineFocusOutCb), nullptr);
-    g_signal_connect(g_engine, "focus-in", G_CALLBACK(IBusEngineFocusInCb), nullptr);
-    g_signal_connect(g_engine, "candidate-clicked", G_CALLBACK(IBusEngineCandidateClickedCb), nullptr);
-    g_signal_connect(g_engine, "property-activate", G_CALLBACK(IBusEnginePropertyActivateCb), nullptr);
-
-    wubi::TrieImportWubiTable();
+    m_engine = new Engine(engine_name);
     LOG_TRACE("Exit");
 
     return g_engine;
