@@ -111,7 +111,10 @@ volatile static long recordingTime = 0; // can only record 60 seconds;
 
 std::string audio_text;
 std::string wbpy_input;
-guint mixed_input_state = 0;
+
+volatile bool g_wubi86_table = false;
+volatile bool g_wubi98_table = false;
+volatile bool g_pinyin_table = true;
 
 namespace wubi {
 
@@ -127,7 +130,7 @@ struct TrieNode {
     std::map<uint64_t, std::string> values = {};
 };
 
-std::unordered_map<std::string, std::string> codeSearcher;
+std::unordered_map<std::string, std::string> g_wubiCodeSearcher; // chinese to zigen table
 
 // Returns new trie node (initialized to nullptrs)
 struct TrieNode *NewNode() {
@@ -197,8 +200,12 @@ void TrieTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
     }
 }
 std::string CodeSearch(const std::string &text) {
-    if (codeSearcher.count(text)) {
-        return codeSearcher[text];
+    if (!g_wubi86_table && !g_wubi98_table) {
+            LOG_DEBUG("wubi not enabled");
+        return "";
+    }
+    if (g_wubiCodeSearcher.count(text)) {
+        return g_wubiCodeSearcher[text];
     }
 
     return "";
@@ -207,11 +214,21 @@ std::string CodeSearch(const std::string &text) {
 void TrieImportWubiTable() {
     g_root = NewNode();
 
+    if (!g_wubi86_table && !g_wubi98_table) {
+        LOG_DEBUG("wubi not enabled");
+        return;
+    }
+    std::string dictPath = "/usr/share/ibus-table/data/wubi86.txt";
+    if (!g_wubi86_table) {
+        dictPath = "/usr/share/ibus-table/data/wubi98.txt";
+    }
+    LOG_INFO("wubi using table %s", dictPath.c_str());
+
     std::string s1;
     s1.reserve(256);
     bool has_began = false;
 
-    for (std::ifstream f2("/usr/share/ibus-table/data/wubi86.txt"); getline(f2, s1);) {
+    for (std::ifstream f2(dictPath); getline(f2, s1);) {
         if (s1 == "BEGIN_TABLE") {
             has_began = true;
             continue;
@@ -231,7 +248,7 @@ void TrieImportWubiTable() {
         uint64_t freq = std::stoll(freq_str);
         TrieInsert(g_root, key, value, freq);
         if (searchCode) {
-            codeSearcher.insert({value, key});
+            g_wubiCodeSearcher.insert({value, key});
         }
     }
 }
@@ -250,7 +267,7 @@ long g_expireTime = 0;
  * 根据AccessKey ID和AccessKey Secret重新生成一个token，并获取其有效期时间戳
  */
 int NetGenerateToken(const std::string &akId, const std::string &akSecret, std::string *token, long *expireTime) {
-    if(akId.empty() || akSecret.empty()) {
+    if (akId.empty() || akSecret.empty()) {
         LOG_ERROR("akId(%d) or akSecret(%d) is empty", akId.size(), akSecret.size());
         return -1;
     }
@@ -827,7 +844,10 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval, guint key
         ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(wbpy_input.c_str()), true);
 
         // get pinyin candidates
-        auto numCandidates = pinyin::Search(wbpy_input);
+        unsigned int numCandidates = 0;
+        if (g_pinyin_table) {
+            numCandidates = pinyin::Search(wbpy_input);
+        }
         LOG_INFO("num candidates %u for %s", numCandidates, wbpy_input.c_str());
 
         // get wubi candidates
@@ -936,15 +956,26 @@ void IBusEngineFocusInCb([[maybe_unused]] IBusEngine *engine) {
     auto prop_list = ibus_prop_list_new();
     LOG_DEBUG("");
     auto prop1 = ibus_property_new(
-        "mixed_input", IBusPropType::PROP_TYPE_TOGGLE, ibus_text_new_from_string("五笔拼音混输"), "audio_ime",
-        ibus_text_new_from_string("五笔拼音混输"), true, true, IBusPropState::PROP_STATE_CHECKED, nullptr);
+        "wubi86_table", IBusPropType::PROP_TYPE_TOGGLE, ibus_text_new_from_string("use五笔86table"), "audio_ime",
+        ibus_text_new_from_string("use五笔86table"), true, true,
+        g_wubi86_table ? IBusPropState::PROP_STATE_CHECKED : IBusPropState::PROP_STATE_UNCHECKED, nullptr);
     auto prop2 = ibus_property_new(
+        "wubi98_table", IBusPropType::PROP_TYPE_TOGGLE, ibus_text_new_from_string("use wubi 98 table"), "audio_ime",
+        ibus_text_new_from_string("use wubii 98 table"), true, true,
+        g_wubi98_table ? IBusPropState::PROP_STATE_CHECKED : IBusPropState::PROP_STATE_UNCHECKED, nullptr);
+    auto prop3 = ibus_property_new(
+        "pinyin_table", IBusPropType::PROP_TYPE_TOGGLE, ibus_text_new_from_string("use拼音table"), "audio_ime",
+        ibus_text_new_from_string("use拼音table"), true, true,
+        g_pinyin_table ? IBusPropState::PROP_STATE_CHECKED : IBusPropState::PROP_STATE_UNCHECKED, nullptr);
+    auto propx = ibus_property_new(
         "preference", IBusPropType::PROP_TYPE_NORMAL, ibus_text_new_from_string("preference"), "audio_ime",
         ibus_text_new_from_string("preference_tool_tip"), true, true, IBusPropState::PROP_STATE_CHECKED, nullptr);
     g_object_ref_sink(prop_list);
     LOG_DEBUG("");
     ibus_prop_list_append(prop_list, prop1);
     ibus_prop_list_append(prop_list, prop2);
+    ibus_prop_list_append(prop_list, prop3);
+    ibus_prop_list_append(prop_list, propx);
     LOG_DEBUG("");
     ibus_engine_register_properties(g_engine, prop_list);
     LOG_DEBUG("");
@@ -954,8 +985,18 @@ void IBusEngineFocusInCb([[maybe_unused]] IBusEngine *engine) {
 void IBusEnginePropertyActivateCb(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
     LOG_TRACE("Entry");
     LOG_INFO("property changed, name:%s, state:%d", name, state);
-    if (std::string(name) == "mixed_input") {
-        mixed_input_state = state;
+    if (std::string(name) == "wubi98_table") {
+        g_wubi98_table = (bool)state;
+        if(wubi::g_root == nullptr) {
+            wubi::TrieImportWubiTable();
+        }
+    } else if (std::string(name) == "wubi86_table") {
+        g_wubi86_table = (bool)state;
+        if(wubi::g_root == nullptr) {
+            wubi::TrieImportWubiTable();
+        }
+    } else if (std::string(name) == "pinyin_table") {
+        g_pinyin_table = (bool)state;
     } else if (std::string(name) == "preference") {
         auto engine_desc = ibus_bus_get_global_engine(g_bus);
         gchar setup[1024];
