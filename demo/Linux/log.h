@@ -13,6 +13,10 @@
 #include <fcntl.h>
 #include <time.h>
 
+#define CONF_SECTION "engine/audio_ime"
+#define CONF_NAME_ID "access_id"  // no captal letter allowed
+#define CONF_NAME_SECRET "access_secret" // no captal letter allowed
+
 constexpr auto filename(std::string_view path)
 {
     return path.substr(path.find_last_of("/\\") + 1);
@@ -27,7 +31,7 @@ static_assert(filename("file.cpp") == "file.cpp");
     do {                                                                       \
         char buff[40]; \
         time_t now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S.%f", localtime(&now)); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&now)); \
         if(logfd)                                                              \
         {                                                                      \
             fprintf(logfd, "%s %s:%d %s > " fmt "\n", buff, filename(__FILE__).data(),          \
@@ -44,6 +48,7 @@ static_assert(filename("file.cpp") == "file.cpp");
 
 #define LOG_DEBUG LOG_INFO
 #define LOG_WARN LOG_INFO
+#define LOG_TRACE LOG_INFO
 #define LOG_ERROR LOG_INFO
 
 inline FILE * logfd = nullptr;

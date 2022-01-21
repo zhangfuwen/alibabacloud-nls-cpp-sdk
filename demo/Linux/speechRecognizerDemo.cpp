@@ -31,8 +31,8 @@
 #include <pulse/simple.h>
 #include <string>
 #include <thread>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "log.h"
 #include "nlsClient.h"
@@ -46,10 +46,6 @@ const int ALPHABET_SIZE = 26;
 #define FRAME_100MS 3200
 #define SAMPLE_RATE 16000
 #define DEFAULT_STRING_LEN 128
-
-#define CONF_SECTION "engine/audio_ime"
-#define CONF_NAME "xxxx"
-
 
 /**
  * 全局维护一个服务鉴权token和其对应的有效期时间戳，
@@ -95,23 +91,22 @@ struct ParamCallBack1 {
 struct Candidate {
     IBusText _text;
     bool _isPinyin;
-    explicit Candidate(IBusText text, bool isPinyin = false): _text(text), _isPinyin(isPinyin)
-    {}
+    explicit Candidate(IBusText text, bool isPinyin = false) : _text(text), _isPinyin(isPinyin) {}
 };
 
 void engine_commit_text(IBusEngine *engine, IBusText *text);
 void IBusUpdateIndicator();
 
-
+void IBusConfigSetup(GDBusConnection *conn);
 static gint id = 0;
 static IBusEngine *g_engine = nullptr;
 static IBusLookupTable *g_table = nullptr;
-static std::vector<Candidate> candidates={};
+static std::vector<Candidate> candidates = {};
 static IBusBus *g_bus;
 static IBusConfig *g_config = nullptr;
 
 volatile static bool recording = false; // currently recording user voice
-volatile static bool waiting = false; // waiting for converted text from internet
+volatile static bool waiting = false;   // waiting for converted text from internet
 volatile static long recordingTime = 0; // can only record 60 seconds;
 
 std::string audio_text;
@@ -150,8 +145,7 @@ TrieNode *g_root = nullptr;
 // If not present, inserts key into trie
 // If the key is prefix of trie node, just
 // marks leaf node
-void TrieInsert(struct TrieNode *root, const std::string &key,
-                const std::string &value, uint64_t freq) {
+void TrieInsert(struct TrieNode *root, const std::string &key, const std::string &value, uint64_t freq) {
     struct TrieNode *pCrawl = root;
 
     for (char i : key) {
@@ -202,8 +196,8 @@ void TrieTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root) {
         TrieTraversal(m, index);
     }
 }
-std::string CodeSearch(const std::string& text) {
-    if(codeSearcher.count(text)) {
+std::string CodeSearch(const std::string &text) {
+    if (codeSearcher.count(text)) {
         return codeSearcher[text];
     }
 
@@ -217,8 +211,7 @@ void TrieImportWubiTable() {
     s1.reserve(256);
     bool has_began = false;
 
-    for (std::ifstream f2("/usr/share/ibus-table/data/wubi86.txt");
-         getline(f2, s1);) {
+    for (std::ifstream f2("/usr/share/ibus-table/data/wubi86.txt"); getline(f2, s1);) {
         if (s1 == "BEGIN_TABLE") {
             has_began = true;
             continue;
@@ -237,7 +230,7 @@ void TrieImportWubiTable() {
         std::string freq_str = s1.substr(second_space + 1);
         uint64_t freq = std::stoll(freq_str);
         TrieInsert(g_root, key, value, freq);
-        if(searchCode) {
+        if (searchCode) {
             codeSearcher.insert({value, key});
         }
     }
@@ -248,16 +241,19 @@ void TrieImportWubiTable() {
 namespace speech {
 static int frame_size = FRAME_100MS;
 static int encoder_type = ENCODER_NONE;
-std::string g_akId = "todo";
-std::string g_akSecret = "todo";
+std::string g_akId = "";
+std::string g_akSecret = "";
 std::string g_token;
 long g_expireTime = 0;
 
 /**
  * 根据AccessKey ID和AccessKey Secret重新生成一个token，并获取其有效期时间戳
  */
-int NetGenerateToken(const std::string &akId, const std::string &akSecret,
-                     std::string *token, long *expireTime) {
+int NetGenerateToken(const std::string &akId, const std::string &akSecret, std::string *token, long *expireTime) {
+    if(akId.empty() || akSecret.empty()) {
+        LOG_ERROR("akId(%d) or akSecret(%d) is empty", akId.size(), akSecret.size());
+        return -1;
+    }
     AlibabaNlsCommon::NlsToken nlsTokenRequest;
     nlsTokenRequest.setAccessKeyId(akId);
     nlsTokenRequest.setKeySecret(akSecret);
@@ -291,11 +287,9 @@ void OnRecognitionStarted(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
         pthread_mutex_unlock(&(tmpParam->mtxWord));
     }
 
-    LOG_INFO(
-        "OnRecognitionStarted: status code:%d, task id:%s",
-        cbEvent
-            ->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
-        cbEvent->getTaskId()); // 当前任务的task id，方便定位问题，建议输出
+    LOG_INFO("OnRecognitionStarted: status code:%d, task id:%s",
+             cbEvent->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
+             cbEvent->getTaskId()); // 当前任务的task id，方便定位问题，建议输出
 }
 
 /**
@@ -306,11 +300,9 @@ void OnRecognitionStarted(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
  * @return
  */
 
-void OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent,
-                                [[maybe_unused]] void *cbParam) {
+void OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent, [[maybe_unused]] void *cbParam) {
     LOG_INFO("result changed");
-    ibus_engine_update_preedit_text(
-        g_engine, ibus_text_new_from_string(cbEvent->getResult()), 0, TRUE);
+    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(cbEvent->getResult()), 0, TRUE);
     //    ibus_lookup_table_append_candidate(g_table,
     //    ibus_text_new_from_string(cbEvent->getResult()));
     //    ibus_engine_update_lookup_table_fast(g_engine, g_table, TRUE); // this
@@ -336,12 +328,10 @@ void OnRecognitionCompleted(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
                  tmpParam->userInfo); // 仅表示自定义参数示例
     }
 
-    LOG_INFO(
-        "OnRecognitionCompleted: status code:%d, task id:%s, result:%s",
-        cbEvent
-            ->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
-        cbEvent->getTaskId(), // 当前任务的task id，方便定位问题，建议输出
-        cbEvent->getResult()); // 获取中间识别结果
+    LOG_INFO("OnRecognitionCompleted: status code:%d, task id:%s, result:%s",
+             cbEvent->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
+             cbEvent->getTaskId(),  // 当前任务的task id，方便定位问题，建议输出
+             cbEvent->getResult()); // 获取中间识别结果
 
     audio_text = cbEvent->getResult();
 
@@ -353,8 +343,7 @@ void OnRecognitionCompleted(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
     engine_commit_text(g_engine, ibus_text_new_from_string(audio_text.c_str()));
     audio_text = "";
     ibus_lookup_table_clear(g_table);
-    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(""), 0,
-                                    false);
+    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(""), 0, false);
 }
 
 /**
@@ -373,12 +362,10 @@ void OnRecognitionTaskFailed(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
                  tmpParam->userInfo); // 仅表示自定义参数示例
     }
 
-    LOG_INFO(
-        "OnRecognitionTaskFailed: status code:%d, task id:%s, error message:%s",
-        cbEvent
-            ->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
-        cbEvent->getTaskId(), // 当前任务的task id，方便定位问题，建议输出
-        cbEvent->getErrorMessage());
+    LOG_INFO("OnRecognitionTaskFailed: status code:%d, task id:%s, error message:%s",
+             cbEvent->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
+             cbEvent->getTaskId(), // 当前任务的task id，方便定位问题，建议输出
+             cbEvent->getErrorMessage());
 
     LOG_INFO("OnRecognitionTaskFailed: All response:%s",
              cbEvent->getAllResponse()); // 获取服务端返回的全部信息
@@ -386,8 +373,7 @@ void OnRecognitionTaskFailed(AlibabaNls::NlsEvent *cbEvent, void *cbParam) {
     audio_text = "";
     engine_commit_text(g_engine, ibus_text_new_from_string(audio_text.c_str()));
     ibus_lookup_table_clear(g_table);
-    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(""), 0,
-                                    false);
+    ibus_engine_update_preedit_text(g_engine, ibus_text_new_from_string(""), 0, false);
 }
 
 /**
@@ -431,8 +417,7 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
     /*
      * 1: 创建一句话识别SpeechRecognizerRequest对象
      */
-    AlibabaNls::SpeechRecognizerRequest *request =
-        AlibabaNls::NlsClient::getInstance()->createRecognizerRequest();
+    AlibabaNls::SpeechRecognizerRequest *request = AlibabaNls::NlsClient::getInstance()->createRecognizerRequest();
     if (request == nullptr) {
         LOG_ERROR("createRecognizerRequest failed.");
         return -3;
@@ -508,27 +493,24 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
         outtime.tv_sec = now.tv_sec + 10;
         outtime.tv_nsec = now.tv_usec * 1000;
         pthread_mutex_lock(&(cbParam->mtxWord));
-        pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord),
-                               &outtime);
+        pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord), &outtime);
         pthread_mutex_unlock(&(cbParam->mtxWord));
     }
 
-    static const pa_sample_spec ss = {
-        .format = PA_SAMPLE_S16LE, .rate = 16000, .channels = 1};
+    static const pa_sample_spec ss = {.format = PA_SAMPLE_S16LE, .rate = 16000, .channels = 1};
     int error;
 
     LOG_DEBUG("pa_simple_new");
-    pa_simple * s = pa_simple_new(nullptr, "audio_ime", PA_STREAM_RECORD, nullptr,
-                  "record", &ss, nullptr, nullptr, &error);
+    pa_simple *s =
+        pa_simple_new(nullptr, "audio_ime", PA_STREAM_RECORD, nullptr, "record", &ss, nullptr, nullptr, &error);
     /* Create the recording stream */
     if (!s) {
-        LOG_INFO("pa_simple_new() failed: %s\n", pa_strerror(error));
+        LOG_INFO("pa_simple_new() failed: %s", pa_strerror(error));
         return -5;
     }
 
     struct timeval x {};
     gettimeofday(&x, nullptr);
-
 
     LOG_DEBUG("recording %d", recording);
     while (recording) {
@@ -546,7 +528,7 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
         /* Record some data ... */
         LOG_DEBUG("reading %d", recording);
         if (pa_simple_read(s, buf, sizeof(buf), &error) < 0) {
-            LOG_INFO("pa_simple_read() failed: %s\n", pa_strerror(error));
+            LOG_INFO("pa_simple_read() failed: %s", pa_strerror(error));
             break;
         }
         uint8_t data[frame_size];
@@ -586,8 +568,7 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
         outtime.tv_nsec = now.tv_usec * 1000;
         // 等待closed事件后再进行释放, 否则会出现崩溃
         pthread_mutex_lock(&(cbParam->mtxWord));
-        pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord),
-                               &outtime);
+        pthread_cond_timedwait(&(cbParam->cvWord), &(cbParam->mtxWord), &outtime);
         pthread_mutex_unlock(&(cbParam->mtxWord));
         LOG_INFO("wait closed callback done.");
     } else {
@@ -598,9 +579,8 @@ int RecognitionRecordAndRequest(ParamStruct1 *tst) {
 }
 
 int RecognitionPrepareAndStartRecording() {
-    int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig(
-        "log-recognizer", AlibabaNls::LogLevel::LogDebug, 400,
-        50); //"log-recognizer"
+    int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig("log-recognizer", AlibabaNls::LogLevel::LogDebug, 400,
+                                                                 50); //"log-recognizer"
     if (-1 == ret) {
         LOG_ERROR("set log failed.");
         return -1;
@@ -617,8 +597,7 @@ int RecognitionPrepareAndStartRecording() {
     std::time_t curTime = std::time(nullptr);
     if (g_expireTime == 0 || g_expireTime - curTime < 10) {
         LOG_DEBUG("generating new token %lu %lu", g_expireTime, curTime);
-        if (-1 ==
-            NetGenerateToken(g_akId, g_akSecret, &g_token, &g_expireTime)) {
+        if (-1 == NetGenerateToken(g_akId, g_akSecret, &g_token, &g_expireTime)) {
             LOG_ERROR("failed to gen token");
             return -1;
         }
@@ -637,29 +616,29 @@ int RecognitionPrepareAndStartRecording() {
 }; // namespace speech
 
 namespace pinyin {
-    guint Search(const std::string& input) {
-        auto numCandidates =
-            ime_pinyin::im_search(input.c_str(), input.size());
-        return numCandidates;
-    }
-    std::wstring GetCandidate(int index) {
-        ime_pinyin::char16 buffer[240];
-        auto ret = ime_pinyin::im_get_candidate(index, buffer, 240);
-        if(ret == nullptr) {
-            return {};
-        }
-
-        return {(wchar_t*)buffer, 240};
-    }
+guint Search(const std::string &input) {
+    auto numCandidates = ime_pinyin::im_search(input.c_str(), input.size());
+    return numCandidates;
 }
+std::wstring GetCandidate(int index) {
+    ime_pinyin::char16 buffer[240];
+    auto ret = ime_pinyin::im_get_candidate(index, buffer, 240);
+    if (ret == nullptr) {
+        return {};
+    }
+
+    return {(wchar_t *)buffer, 240};
+}
+} // namespace pinyin
 static void sigterm_cb(int sig) {
     LOG_ERROR("sig term %d", sig);
     exit(-1);
 }
 
-static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus,
-                                 [[maybe_unused]] gpointer user_data) {
+static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus, [[maybe_unused]] gpointer user_data) {
+    LOG_TRACE("Entry");
     ibus_quit();
+    LOG_TRACE("Exit");
 }
 
 void engine_reset(IBusEngine *engine, IBusLookupTable *table) {
@@ -687,26 +666,22 @@ std::string IBusMakeIndicatorMsg() {
 }
 
 void IBusUpdateIndicator() {
-    ibus_engine_update_auxiliary_text(
-        g_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg().c_str()),
-        TRUE);
+    ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg().c_str()), TRUE);
 }
 
 void candidateSelected(guint index, bool ignoreText = false) {
     auto text = ibus_lookup_table_get_candidate(g_table, index);
 
-    if(candidates[index]._isPinyin) {
+    if (candidates[index]._isPinyin) {
         std::string code = wubi::CodeSearch(text->text);
-        if(code.empty()) {
+        if (code.empty()) {
             ibus_engine_hide_auxiliary_text(g_engine);
         } else {
             std::string hint = "五笔[" + code + "]";
-            ibus_engine_update_auxiliary_text(g_engine,
-                                              ibus_text_new_from_string(hint.c_str()),
-                                              true);
+            ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(hint.c_str()), true);
             LOG_INFO("cursor:%d, text:%s, wubi code:%s - %d", index, text->text, code.c_str(), code.size());
         }
-    }else {
+    } else {
         LOG_INFO("cursor:%d, text:%s, is not pinyin", index, text->text);
         ibus_engine_hide_auxiliary_text(g_engine);
     }
@@ -721,10 +696,9 @@ void candidateSelected(guint index, bool ignoreText = false) {
     candidates.clear();
 }
 
-gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
-                                     guint keycode, guint state) {
-    LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode,
-             keyval);
+gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval, guint keycode, guint state) {
+    LOG_TRACE("Entry");
+    LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
 
     if (state & IBUS_RELEASE_MASK) {
         return FALSE;
@@ -766,8 +740,7 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
             // caps lock
             wbpy_input = "";
             ibus_lookup_table_clear(g_table);
-            ibus_engine_update_auxiliary_text(
-                g_engine, ibus_text_new_from_string(""), true);
+            ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(""), true);
             ibus_engine_hide_lookup_table(engine);
             ibus_engine_hide_preedit_text(engine);
             ibus_engine_hide_auxiliary_text(engine);
@@ -823,20 +796,17 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
             ibus_engine_update_lookup_table_fast(g_engine, g_table, true);
             return true;
         }
-        if (keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return ||
-            std::isdigit((char)(keyval)) || keycode == 1) {
+        if (keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return || std::isdigit((char)(keyval)) || keycode == 1) {
             if (wbpy_input.empty()) {
                 return false;
             }
             LOG_DEBUG("space pressed");
             guint cursor = ibus_lookup_table_get_cursor_pos(g_table);
             if (std::isdigit((char)keyval)) {
-                guint cursor_page =
-                    ibus_lookup_table_get_cursor_in_page(g_table);
+                guint cursor_page = ibus_lookup_table_get_cursor_in_page(g_table);
                 int index = (int)(keyval - IBUS_KEY_0);
                 cursor = cursor + (index - cursor_page) - 1;
-                LOG_DEBUG("cursor_page:%d, index:%d, cursor:%d", cursor_page,
-                          index, cursor);
+                LOG_DEBUG("cursor_page:%d, index:%d, cursor:%d", cursor_page, index, cursor);
                 ibus_lookup_table_set_cursor_pos(g_table, cursor);
             }
             candidateSelected(cursor, keycode == 1);
@@ -854,13 +824,11 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
             wbpy_input += (char)std::tolower((int)keyval);
         }
         // chinese mode
-        ibus_engine_update_auxiliary_text(
-            g_engine, ibus_text_new_from_string(wbpy_input.c_str()), true);
+        ibus_engine_update_auxiliary_text(g_engine, ibus_text_new_from_string(wbpy_input.c_str()), true);
 
         // get pinyin candidates
         auto numCandidates = pinyin::Search(wbpy_input);
-        LOG_INFO("num candidates %u for %s\n", numCandidates,
-                 wbpy_input.c_str());
+        LOG_INFO("num candidates %u for %s", numCandidates, wbpy_input.c_str());
 
         // get wubi candidates
         LOG_DEBUG("");
@@ -905,15 +873,10 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
                 glong items_read;
                 glong items_written;
                 GError *error;
-                gunichar *utf32_str =
-                    g_utf16_to_ucs4(
-                        reinterpret_cast<const gunichar2 *>(buffer.data()),
-                        buffer.size(),
-                        &items_read,
-                        &items_written,
-                        &error);
+                gunichar *utf32_str = g_utf16_to_ucs4(reinterpret_cast<const gunichar2 *>(buffer.data()), buffer.size(),
+                                                      &items_read, &items_written, &error);
                 auto text = ibus_text_new_from_ucs4(utf32_str);
-                candidates.emplace_back(* text,true);
+                candidates.emplace_back(*text, true);
                 ibus_lookup_table_append_candidate(g_table, text);
                 j++;
             }
@@ -939,7 +902,7 @@ gboolean IBusEngineProcessKeyEventCb(IBusEngine *engine, guint keyval,
 }
 
 void IBusEngineEnableCb([[maybe_unused]] IBusEngine *engine) {
-    LOG_INFO("[IM:iBus]: IM enabled\n");
+    LOG_TRACE("Entry");
     // Setup Lookup table
     g_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
     LOG_INFO("table %p", g_table);
@@ -950,37 +913,34 @@ void IBusEngineEnableCb([[maybe_unused]] IBusEngine *engine) {
     ibus_lookup_table_set_orientation(g_table, IBUS_ORIENTATION_VERTICAL);
     // ibus_engine_show_lookup_table(engine);
     //     ibus_engine_show_auxiliary_text(engine);
-    bool ret = ime_pinyin::im_open_decoder(
-        "/usr/share/ibus-table/data/dict_pinyin.dat",
-        "/home/zhangfuwen/pinyin.dat");
+    bool ret = ime_pinyin::im_open_decoder("/usr/share/ibus-table/data/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
     if (!ret) {
-        LOG_ERROR("failed to open decoder\n");
+        LOG_ERROR("failed to open decoder");
     }
+    LOG_TRACE("Exit");
 }
 
 void IBusEngineDisableCb([[maybe_unused]] IBusEngine *engine) {
-    LOG_INFO("[IM:iBus]: IM disabled\n");
+    LOG_TRACE("Entry");
     ime_pinyin::im_close_decoder();
+    LOG_TRACE("Exit");
 }
 
 void IBusEngineFocusOutCb(IBusEngine *engine) {
-    LOG_INFO("[IM:iBus]: IM Focus out\n");
+    LOG_TRACE("Entry");
+    LOG_TRACE("Exit");
 }
 
 void IBusEngineFocusInCb([[maybe_unused]] IBusEngine *engine) {
-    LOG_INFO("[IM:iBus]: IM Focus in\n");
+    LOG_TRACE("Entry");
     auto prop_list = ibus_prop_list_new();
     LOG_DEBUG("");
     auto prop1 = ibus_property_new(
-        "mixed_input", IBusPropType::PROP_TYPE_TOGGLE,
-        ibus_text_new_from_string("五笔拼音混输"), "audio_ime",
-        ibus_text_new_from_string("五笔拼音混输"), true, true,
-        IBusPropState::PROP_STATE_CHECKED, nullptr);
+        "mixed_input", IBusPropType::PROP_TYPE_TOGGLE, ibus_text_new_from_string("五笔拼音混输"), "audio_ime",
+        ibus_text_new_from_string("五笔拼音混输"), true, true, IBusPropState::PROP_STATE_CHECKED, nullptr);
     auto prop2 = ibus_property_new(
-        "preference", IBusPropType::PROP_TYPE_NORMAL,
-        ibus_text_new_from_string("preference"), "audio_ime",
-        ibus_text_new_from_string("preference_tool_tip"), true, true,
-        IBusPropState::PROP_STATE_CHECKED, nullptr);
+        "preference", IBusPropType::PROP_TYPE_NORMAL, ibus_text_new_from_string("preference"), "audio_ime",
+        ibus_text_new_from_string("preference_tool_tip"), true, true, IBusPropState::PROP_STATE_CHECKED, nullptr);
     g_object_ref_sink(prop_list);
     LOG_DEBUG("");
     ibus_prop_list_append(prop_list, prop1);
@@ -988,10 +948,11 @@ void IBusEngineFocusInCb([[maybe_unused]] IBusEngine *engine) {
     LOG_DEBUG("");
     ibus_engine_register_properties(g_engine, prop_list);
     LOG_DEBUG("");
+    LOG_TRACE("Exit");
 }
 
-void IBusEnginePropertyActivateCb(IBusEngine *engine, gchar *name, guint state,
-                                  gpointer user_data) {
+void IBusEnginePropertyActivateCb(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
+    LOG_TRACE("Entry");
     LOG_INFO("property changed, name:%s, state:%d", name, state);
     if (std::string(name) == "mixed_input") {
         mixed_input_state = state;
@@ -1003,49 +964,55 @@ void IBusEnginePropertyActivateCb(IBusEngine *engine, gchar *name, guint state,
         LOG_DEBUG("setup path--:%s", setup_path);
         g_object_unref(G_OBJECT(engine_desc));
     }
+    LOG_TRACE("Exit");
 }
 
-
-void IBusEngineCandidateClickedCb(IBusEngine *engine, guint index, guint button,
-                                  guint state) {
-    LOG_INFO("[IM:iBus]: candidate clicked\n");
+void IBusEngineCandidateClickedCb(IBusEngine *engine, guint index, guint button, guint state) {
     candidateSelected(index);
 }
 
-void IBusConfigValueChangedCb(IBusConfig *config, gchar *section, gchar *name,
-                              GVariant *value, gpointer user_data) {
-    LOG_INFO("name:%s, section:%s", name, section);
+void IBusConfigValueChangedCb(IBusConfig *config, gchar *section, gchar *name, GVariant *value, gpointer user_data) {
+    LOG_TRACE("Entry");
+    LOG_DEBUG("section:%s, name:%s", section, name);
+    if (std::string(name) == CONF_NAME_ID) {
+        auto nameVal = g_variant_get_string(value, nullptr);
+        if (nameVal == nullptr) {
+            LOG_ERROR("failed to get variant");
+            return;
+        }
+        speech::g_akId = nameVal;
+        LOG_DEBUG("value:%s", speech::g_akId.c_str());
+    } else if (std::string(name) == CONF_NAME_SECRET) {
+        auto nameVal = g_variant_get_string(value, nullptr);
+        if (nameVal == nullptr) {
+            LOG_ERROR("failed to get variant");
+            return;
+        }
+        speech::g_akSecret = nameVal;
+        LOG_DEBUG("value:%s", speech::g_akSecret.c_str());
+    }
+    LOG_TRACE("Exit");
 }
 
-IBusEngine *IBusEngineCreatedCb(IBusFactory *factory, gchar *engine_name,
-                                gpointer user_data) {
+IBusEngine *IBusEngineCreatedCb(IBusFactory *factory, gchar *engine_name, gpointer user_data) {
+    LOG_TRACE("Entry");
     id += 1;
     gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
-    g_engine =
-        ibus_engine_new(engine_name, path, ibus_bus_get_connection(g_bus));
+    g_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(g_bus));
 
     // Setup Lookup table
-    LOG_INFO("[IM:iBus]: Creating IM Engine\n");
-    LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d\n",
-             engine_name, id);
+    LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
 
-    g_signal_connect(g_engine, "process-key-event",
-                     G_CALLBACK(IBusEngineProcessKeyEventCb), nullptr);
-    g_signal_connect(g_engine, "enable", G_CALLBACK(IBusEngineEnableCb),
-                     nullptr);
-    g_signal_connect(g_engine, "disable", G_CALLBACK(IBusEngineDisableCb),
-                     nullptr);
-    g_signal_connect(g_engine, "focus-out", G_CALLBACK(IBusEngineFocusOutCb),
-                     nullptr);
-    g_signal_connect(g_engine, "focus-in", G_CALLBACK(IBusEngineFocusInCb),
-                     nullptr);
-    g_signal_connect(g_engine, "candidate-clicked",
-                     G_CALLBACK(IBusEngineCandidateClickedCb), nullptr);
-    g_signal_connect(g_engine, "property-activate",
-                     G_CALLBACK(IBusEnginePropertyActivateCb), nullptr);
+    g_signal_connect(g_engine, "process-key-event", G_CALLBACK(IBusEngineProcessKeyEventCb), nullptr);
+    g_signal_connect(g_engine, "enable", G_CALLBACK(IBusEngineEnableCb), nullptr);
+    g_signal_connect(g_engine, "disable", G_CALLBACK(IBusEngineDisableCb), nullptr);
+    g_signal_connect(g_engine, "focus-out", G_CALLBACK(IBusEngineFocusOutCb), nullptr);
+    g_signal_connect(g_engine, "focus-in", G_CALLBACK(IBusEngineFocusInCb), nullptr);
+    g_signal_connect(g_engine, "candidate-clicked", G_CALLBACK(IBusEngineCandidateClickedCb), nullptr);
+    g_signal_connect(g_engine, "property-activate", G_CALLBACK(IBusEnginePropertyActivateCb), nullptr);
 
     wubi::TrieImportWubiTable();
-    LOG_DEBUG("");
+    LOG_TRACE("Exit");
 
     return g_engine;
 }
@@ -1056,36 +1023,33 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
     signal(SIGSEGV, signal_handler);
     log_init();
 
+    LOG_INFO("ibus_init");
+
     ibus_init();
     g_bus = ibus_bus_new();
     g_object_ref_sink(g_bus);
 
-    LOG_DEBUG("bus %p", g_bus);
+    LOG_INFO("ibus %p", g_bus);
 
     if (!ibus_bus_is_connected(g_bus)) {
         LOG_WARN("not connected to ibus");
         exit(0);
+    } else {
+        LOG_INFO("ibus connected");
     }
 
-    LOG_DEBUG("ibus bus connected");
-
-    g_signal_connect(g_bus, "disconnected", G_CALLBACK(IBusOnDisconnectedCb),
-                     nullptr);
+    g_signal_connect(g_bus, "disconnected", G_CALLBACK(IBusOnDisconnectedCb), nullptr);
 
     IBusFactory *factory = ibus_factory_new(ibus_bus_get_connection(g_bus));
     LOG_DEBUG("factory %p", factory);
     g_object_ref_sink(factory);
 
     auto conn = ibus_bus_get_connection(g_bus);
-    LOG_DEBUG("");
-    g_config = ibus_config_new(conn, nullptr, nullptr);
-    LOG_DEBUG("");
-    ibus_config_watch(g_config, CONF_SECTION, CONF_NAME);
-    g_signal_connect(g_config, "value-changed",
-                     G_CALLBACK(IBusConfigValueChangedCb), nullptr);
+    LOG_DEBUG("ibus connection %p", conn);
 
-    g_signal_connect(factory, "create-engine", G_CALLBACK(IBusEngineCreatedCb),
-                     nullptr);
+    IBusConfigSetup(conn);
+
+    g_signal_connect(factory, "create-engine", G_CALLBACK(IBusEngineCreatedCb), nullptr);
 
     ibus_factory_add_engine(factory, "AudIme", IBUS_TYPE_ENGINE);
 
@@ -1099,25 +1063,66 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
             LOG_INFO("ibus_bus_request_name success");
         }
     } else {
-        component = ibus_component_new(
-            "org.freedesktop.IBus.AudIme", "LOT input method", "1.1", "MIT",
-            "zhangfuwen", "xxx", "/usr/bin/audio_ime --ibus", "audio_ime");
+        component = ibus_component_new("org.freedesktop.IBus.AudIme", "LOT input method", "1.1", "MIT", "zhangfuwen",
+                                       "xxx", "/usr/bin/audio_ime --ibus", "audio_ime");
         LOG_DEBUG("component %p", component);
-        ibus_component_add_engine(
-            component,
-            ibus_engine_desc_new("AudIme", "audo input method",
-                                 "audo input method", "zh_CN", "MIT",
-                                 "zhangfuwen", "audio_ime", "default"));
+        ibus_component_add_engine(component,
+                                  ibus_engine_desc_new("AudIme", "audo input method", "audo input method", "zh_CN",
+                                                       "MIT", "zhangfuwen", "audio_ime", "default"));
         ibus_bus_register_component(g_bus, component);
 
-        ibus_bus_set_global_engine_async(g_bus, "AudIme", -1, nullptr, nullptr,
-                                         nullptr);
+        ibus_bus_set_global_engine_async(g_bus, "AudIme", -1, nullptr, nullptr, nullptr);
     }
 
     LOG_INFO("entering ibus main");
     ibus_main();
     LOG_INFO("exiting ibus main");
 
+    if (g_config) {
+        g_object_unref(g_config);
+    }
+
     g_object_unref(factory);
     g_object_unref(g_bus);
+}
+void IBusConfigSetup(GDBusConnection *conn) {
+    g_config = ibus_config_new(conn, nullptr, nullptr);
+    if (!g_config) {
+        LOG_WARN("ibus config not accessible");
+    } else {
+        g_object_ref_sink(g_config);
+    }
+    LOG_DEBUG("ibus config %p", g_config);
+
+    auto akId = ibus_config_get_value(g_config, CONF_SECTION, CONF_NAME_ID);
+    if (akId != nullptr) {
+        auto nameVal = g_variant_get_string(akId, nullptr);
+        if (nameVal == nullptr) {
+            LOG_ERROR("failed to get variant");
+            speech::g_akId = "";
+        } else {
+            speech::g_akId = nameVal;
+            LOG_DEBUG("value:%s", speech::g_akId.c_str());
+        }
+    } else {
+        LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
+    }
+    auto secret = ibus_config_get_value(g_config, CONF_SECTION, CONF_NAME_SECRET);
+    if (secret != nullptr) {
+        speech::g_akSecret = g_variant_get_string(secret, nullptr);
+        auto nameVal = g_variant_get_string(secret, nullptr);
+        if (nameVal == nullptr) {
+            LOG_ERROR("failed to get variant");
+            speech::g_akSecret = "";
+        } else {
+            speech::g_akSecret = nameVal;
+            LOG_DEBUG("value:%s", speech::g_akSecret.c_str());
+        }
+    } else {
+        LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
+    }
+    ibus_config_watch(g_config, CONF_SECTION, CONF_NAME_ID);
+    ibus_config_watch(g_config, CONF_SECTION, CONF_NAME_SECRET);
+    g_signal_connect(g_config, "value-changed", G_CALLBACK(IBusConfigValueChangedCb), nullptr);
+    LOG_INFO("config value-changed signal connected");
 }
