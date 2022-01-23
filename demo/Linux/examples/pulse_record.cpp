@@ -15,8 +15,6 @@
 #include <pulse/error.h>
 #include <pulse/gccmacro.h>
 
-#define BUFSIZE 1024
-
 /* A simple routine calling UNIX write() in a loop */
 static ssize_t loop_write(int fd, const void*data, size_t size) {
     ssize_t ret = 0;
@@ -49,7 +47,7 @@ int main(int argc, char*argv[]) {
     int ret = 1;
     int error;
 
-    /* Create the recording stream */
+    /* Create the m_recording stream */
     if (!(s = pa_simple_new(NULL, argv[0], PA_STREAM_RECORD, NULL, "record", &ss, NULL, NULL, &error))) {
         fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
         goto finish;

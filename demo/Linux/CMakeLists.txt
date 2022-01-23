@@ -1,4 +1,4 @@
-
+cmake_minimum_required(VERSION 3.1)
 project(audio-ime)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -19,7 +19,7 @@ include_directories(${CMAKE_SOURCE_DIR}/../../build/install/NlsSdk3.X_LINUX/incl
 link_directories(${CMAKE_SOURCE_DIR}/../../build/install/NlsSdk3.X_LINUX/lib)
 
 
-add_executable(pulse_record pulse_record.cpp)
+add_executable(pulse_record examples/pulse_record.cpp)
 target_link_libraries(pulse_record pulse pulse-simple)
 
 # 一句话识别
@@ -63,11 +63,16 @@ add_library(pinyin STATIC
         pinyin/utf16reader.cpp
         )
 
-add_executable(wubitest wubitest.cpp)
-add_executable(pinyintest pinyintest.cpp)
+add_executable(wubitest examples/wubitest.cpp)
+add_executable(pinyintest examples/pinyintest.cpp)
 target_link_libraries(pinyintest pinyin ${GLib2_LIBRARIES})
 
-add_executable(audio_ime profile_scan.cpp speechRecognizerDemo.cpp)
+add_executable(audio_ime
+        src/InputMethod.cpp
+        src/PinyinIME.cpp
+        src/wubi.cpp
+        src/main.cpp
+        src/SpeechRecognizer.cpp)
 target_link_libraries(audio_ime
     alibabacloud-idst-speech.a
     pthread z dl psl brotlidec pulse pulse-simple
@@ -76,7 +81,7 @@ target_link_libraries(audio_ime
 target_compile_definitions(audio_ime PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
 
 pkg_check_modules(GTKMM3 REQUIRED gtkmm-3.0)
-add_executable(audio_ime_setup ime_setup.cpp)
+add_executable(audio_ime_setup src/ime_setup.cpp)
 target_include_directories(audio_ime_setup PRIVATE ${GTKMM3_INCLUDE_DIRS})
 message("gtkmm ${GTKMM3_INCLUDE_DIRS}")
 target_link_libraries(audio_ime_setup ${GTKMM3_LIBRARIES}
@@ -90,15 +95,15 @@ set(CPACK_PACKAGE_VERSION "1.1")
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA, "scripts/prerm;scripts/postrm;scripts/preinst;scripts/postinst")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpsl-dev, libpulse-dev, libbrotli-dev, ibus")
 
-INSTALL(FILES audio_ime.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
-INSTALL(FILES audio_ime.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES res/audio_ime.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES res/audio_ime.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(TARGETS audio_ime DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(TARGETS audio_ime_setup DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(FILES ime_setup.glade DESTINATION /usr/share/ibus/ibus-audio/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
-INSTALL(FILES dict_pinyin.dat DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
+INSTALL(FILES res/dict_pinyin.dat DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES wubi86.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES wubi98.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
-INSTALL(FILES audio_ime.png DESTINATION share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES res/audio_ime.png DESTINATION share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 
 INCLUDE(CPack)
 # 实时识别
