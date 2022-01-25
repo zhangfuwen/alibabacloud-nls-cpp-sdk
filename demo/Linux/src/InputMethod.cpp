@@ -40,9 +40,17 @@ InputMethod::InputMethod(gchar *engine_name, int id, IBusBus *bus) {
     m_wubi = new Wubi(wubi86DictPath);
     m_pinyin = new pinyin::Pinyin();
     m_speechRecognizer = new SpeechRecognizer(*this);
+    s_engineMap[engine_name] = this;
 
     registerCallbacks();
 }
+
+std::map<std::string, InputMethod *> InputMethod::s_engineMap = {};
+InputMethod * InputMethod::IBusEngineToInputMethod(IBusEngine * engine) {
+    return s_engineMap[ibus_engine_get_name(engine)];
+}
+
+
 IBusEngine *InputMethod::getIBusEngine() { return m_engine; }
 InputMethod::~InputMethod() {
     delete m_pinyin;
@@ -300,16 +308,29 @@ gboolean InputMethod::ProcessKeyEvent(guint keyval, guint keycode, guint state) 
         return false;
     }
 }
+
+// static
 gboolean InputMethod::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state) {
     IBusEngineToInputMethod(engine)->ProcessKeyEvent(keyval, keycode, state);
 }
+
+// static
 void InputMethod::OnEnable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Enable(); }
+
+// static
 void InputMethod::OnDisable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Disable(); }
+
+// static
 void InputMethod::OnFocusOut(IBusEngine *engine) {}
+
+// static
 void InputMethod::OnFocusIn([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->FocusIn(); }
+
+// static
 void InputMethod::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
     IBusEngineToInputMethod(engine)->candidateSelected(index);
 }
+
 void InputMethod::FocusIn() {
     LOG_TRACE("Entry");
     auto prop_list = ibus_prop_list_new();
@@ -353,12 +374,12 @@ void InputMethod::OnPropertyActivate(IBusEngine *engine, gchar *name, guint stat
     } else if (std::string(name) == "pinyin_table") {
         g_pinyin_table = (bool)state;
     } else if (std::string(name) == "preference") {
-        auto engine_desc = ibus_bus_get_global_engine(g_bus);
-        gchar setup[1024];
-        const gchar *setup_path = ibus_engine_desc_get_setup(engine_desc);
+//        auto engine_desc = ibus_bus_get_global_engine(g_bus);
+//        gchar setup[1024];
+//        const gchar *setup_path = ibus_engine_desc_get_setup(engine_desc);
         g_spawn_command_line_async("audio_ime_setup", nullptr);
-        LOG_DEBUG("setup path--:%s", setup_path);
-        g_object_unref(G_OBJECT(engine_desc));
+//        LOG_DEBUG("setup path--:%s", setup_path);
+//        g_object_unref(G_OBJECT(engine_desc));
     }
     LOG_TRACE("Exit");
 }
@@ -394,7 +415,7 @@ void InputMethod::candidateSelected(guint index, bool ignoreText) {
         } else {
             std::string hint = "五笔[" + code + "]";
             ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(hint.c_str()), true);
-            LOG_INFO("cursor:%d, text:%s, wubi code:%s - %d", index, text->text, code.c_str(), code.size());
+            LOG_INFO("cursor:%d, text:%s, wubi code:%s - %lu", index, text->text, code.c_str(), code.size());
         }
     } else {
         LOG_INFO("cursor:%d, text:%s, is not pinyin", index, text->text);

@@ -8,7 +8,7 @@
 #include <csignal>
 #include <thread>
 #include <string>
-#include <ibustext.h>
+#include <ibus.h>
 #include <nlsEvent.h>
 
 #define BUFSIZE 1024
@@ -17,11 +17,11 @@
 
 class SpeechListener {
   public:
-    virtual void OnCompleted(std::string text);
-    virtual void OnFailed();
-    virtual void OnPartialResult(std::string text);
-    virtual void IBusUpdateIndicator(long);
-    virtual ~SpeechListener();
+    virtual void OnCompleted(std::string text) = 0;
+    virtual void OnFailed() = 0;
+    virtual void OnPartialResult(std::string text) = 0;
+    virtual void IBusUpdateIndicator(long) = 0;
+    virtual ~SpeechListener() = default;;
 };
 class SpeechRecognizer {
   public:

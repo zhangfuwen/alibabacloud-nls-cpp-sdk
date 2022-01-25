@@ -30,8 +30,8 @@ static_assert(filename("file.cpp") == "file.cpp");
 #define LOG_INFO(fmt, ...)                                                     \
     do {                                                                       \
         char buff[40]; \
-        time_t now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&now)); \
+        time_t log_now = time(NULL); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now)); \
         if(logfd)                                                              \
         {                                                                      \
             fprintf(logfd, "%s %s:%d %s > " fmt "\n", buff, filename(__FILE__).data(),          \
@@ -62,7 +62,7 @@ inline void log_init() {
 static inline void printBacktrace() {
     char buff[40];
     time_t now = time(NULL);
-    strftime(buff, 40, "%Y-%m-%d %H:%M:%S.%f", localtime(&now));
+    strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&now));
 
     fprintf(dumpfd, "%s crash:\n", buff);
     void *stackBuffer[64];

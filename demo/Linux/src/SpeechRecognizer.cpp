@@ -3,45 +3,31 @@
 //
 
 #include "SpeechRecognizer.h"
-#include "InputMethod.h"
-#include "PinyinIME.h"
 #include "log.h"
 #include "nlsClient.h"
 #include "nlsEvent.h"
 #include "nlsToken.h"
 #include "speechRecognizerRequest.h"
-#include "wubi.h"
 #include <cctype>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <errno.h>
 #include <fcntl.h>
-#include <fstream>
 #include <functional>
-#include <glib-object.h>
-#include <glib.h>
-#include <ibus.h>
-#include <iostream>
-#include <map>
-#include <pinyinime.h>
 #include <pthread.h>
 #include <pulse/error.h>
-#include <pulse/gccmacro.h>
 #include <pulse/simple.h>
-#include <stdio.h>
-#include <string.h>
-#include <string>
+#include <cstdio>
+#include <cstring>
 #include <thread>
-#include <unistd.h>
-#include <unordered_map>
-#include <utility>
 #include <vector>
+
+using namespace std;
 
 std::string audio_text;
 
-using SpeechCallbackType = function<void(AlibabaNls::NlsEvent *ev, void *cbParam)>;
+using SpeechCallbackType = std::function<void(AlibabaNls::NlsEvent *ev, void *cbParam)>;
 static SpeechCallbackType fnOnRecognitionStarted;
 static SpeechCallbackType fnOnRecognitionTaskFailed;
 static SpeechCallbackType fnOnRecognitionChannelClosed;
@@ -53,7 +39,7 @@ static SpeechCallbackType fnOnRecognitionCompleted;
  */
 int SpeechRecognizer::NetGenerateToken(const string &akId, const string &akSecret, string *token, long *expireTime) {
     if (akId.empty() || akSecret.empty()) {
-        LOG_ERROR("akId(%d) or akSecret(%d) is empty", akId.size(), akSecret.size());
+        LOG_ERROR("akId(%lu) or akSecret(%lu) is empty", akId.size(), akSecret.size());
         return -1;
     }
     AlibabaNlsCommon::NlsToken nlsTokenRequest;

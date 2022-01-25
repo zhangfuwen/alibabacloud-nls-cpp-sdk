@@ -6,8 +6,9 @@
 #define AUDIO_IME_WUBI_H
 #include <string>
 #include <map>
+#include <vector>
 #include <unordered_map>
-#include "InputMethod.h"
+#include "common.h"
 
 extern volatile bool g_wubi86_table;
 extern volatile bool g_wubi98_table;
@@ -34,7 +35,7 @@ class Wubi {
     TrieNode *m_trieRoot = nullptr;
     std::unordered_map<std::string, std::string> m_wubiCodeSearcher; // chinese to zigen table
     bool m_searchCode = true;
-    vector<Candidate> m_searchResult;
+    std::vector<Candidate> m_searchResult;
 }; // Returns new trie node (initialized to nullptrs)
 
 struct TrieNode *NewNode();

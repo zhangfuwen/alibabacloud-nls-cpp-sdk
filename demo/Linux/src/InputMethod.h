@@ -35,12 +35,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "wubi.h"
 
-struct Candidate {
-    IBusText _text;
-    bool _isPinyin;
-    explicit Candidate(IBusText text, bool isPinyin = false) : _text(text), _isPinyin(isPinyin) {}
-};
 class InputMethod : public ::SpeechListener {
     const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
     const std::string wubi98DictPath = "/usr/share/ibus-table/data/wubi98.txt";
@@ -48,7 +44,7 @@ class InputMethod : public ::SpeechListener {
     class Property {};
     IBusLookupTable *m_table = nullptr;
     IBusEngine *m_engine = nullptr;
-    wubi::Wubi *m_wubi = nullptr;
+    Wubi *m_wubi = nullptr;
     pinyin::Pinyin *m_pinyin = nullptr;
     SpeechRecognizer *m_speechRecognizer = nullptr;
     std::string m_input;
@@ -66,7 +62,7 @@ class InputMethod : public ::SpeechListener {
     void SetSpeechAkSecret(std::string akSecret);
     void Enable();
     void Disable();
-    void IBusUpdateIndicator(long recordingTime);
+    void IBusUpdateIndicator(long recordingTime) override;
     // early return ?
     // return value
     std::pair<bool, bool> ProcessSpeech(guint keyval, guint keycode, guint state);
@@ -77,6 +73,8 @@ class InputMethod : public ::SpeechListener {
     static void OnFocusOut(IBusEngine *engine);
     static void OnFocusIn([[maybe_unused]] IBusEngine *engine);
     static void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state);
+    static std::map<std::string, InputMethod *> s_engineMap;
+    static InputMethod * IBusEngineToInputMethod(IBusEngine * engine);
     void FocusIn();
     static void OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data);
     void engine_reset(IBusEngine *engine, IBusLookupTable *table);
