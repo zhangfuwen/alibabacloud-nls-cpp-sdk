@@ -35,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-#include "InputMethod.h"
+#include "Engine.h"
 #include "PinyinIME.h"
 #include "SpeechRecognizer.h"
 #include "log.h"
@@ -47,7 +47,7 @@
 #include <functional>
 using namespace std::placeholders;
 IBusBus *g_bus;
-InputMethod *g_engine = nullptr;
+Engine *g_engine = nullptr;
 gint id = 0;
 IBusConfig *g_config = nullptr;
 
@@ -78,22 +78,14 @@ void IBusConfig_OnValueChanged(IBusConfig *config, gchar *section, gchar *name, 
     }
     LOG_TRACE("Exit");
 }
-IBusEngine *IBusEngine_OnCreated(IBusFactory *factory, gchar *engine_name, gpointer user_data) {
-    LOG_TRACE("Entry");
-    id += 1;
-    g_engine = new InputMethod(engine_name, id, g_bus);
-    LOG_TRACE("Exit");
-
-    return g_engine->getIBusEngine();
-}
 void IBusConfigSetup(GDBusConnection *conn) {
     g_config = ibus_config_new(conn, nullptr, nullptr);
     if (!g_config) {
-        LOG_WARN("ibus config not accessible");
+            LOG_WARN("ibus config not accessible");
     } else {
         g_object_ref_sink(g_config);
     }
-    LOG_DEBUG("ibus config %p", g_config);
+        LOG_DEBUG("ibus config %p", g_config);
 
     string speechAkId;
     string speechAkSecret;
@@ -101,34 +93,47 @@ void IBusConfigSetup(GDBusConnection *conn) {
     if (akId != nullptr) {
         auto nameVal = g_variant_get_string(akId, nullptr);
         if (nameVal == nullptr) {
-            LOG_ERROR("failed to get variant");
+                LOG_ERROR("failed to get variant");
             speechAkId = "";
         } else {
             speechAkId = nameVal;
-            LOG_DEBUG("value:%s", nameVal);
+                LOG_DEBUG("value:%s", nameVal);
         }
     } else {
-        LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
+            LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
     }
     auto secret = ibus_config_get_value(g_config, CONF_SECTION, CONF_NAME_SECRET);
     if (secret != nullptr) {
         auto nameVal = g_variant_get_string(secret, nullptr);
         if (nameVal == nullptr) {
-            LOG_ERROR("failed to get variant");
+                LOG_ERROR("failed to get variant");
             speechAkSecret = "";
         } else {
             speechAkSecret = nameVal;
-            LOG_DEBUG("value:%s", nameVal);
+                LOG_DEBUG("value:%s", nameVal);
         }
     } else {
-        LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
+            LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
     }
-    g_engine->SetSpeechAkId(speechAkId);
-    g_engine->SetSpeechAkSecret(speechAkSecret);
+    if(g_engine) {
+        g_engine->SetSpeechAkId(speechAkId);
+        g_engine->SetSpeechAkSecret(speechAkSecret);
+    }
     ibus_config_watch(g_config, CONF_SECTION, CONF_NAME_ID);
     ibus_config_watch(g_config, CONF_SECTION, CONF_NAME_SECRET);
     g_signal_connect(g_config, "value-changed", G_CALLBACK(IBusConfig_OnValueChanged), nullptr);
     LOG_INFO("config value-changed signal connected");
+}
+IBusEngine *IBusEngine_OnCreated(IBusFactory *factory, gchar *engine_name, gpointer user_data) {
+    LOG_TRACE("Entry");
+    id += 1;
+    g_engine = new Engine(engine_name, id, g_bus);
+    LOG_TRACE("Exit");
+    auto conn = ibus_bus_get_connection(g_bus);
+    LOG_DEBUG("ibus connection %p", conn);
+    IBusConfigSetup(conn);
+
+    return g_engine->getIBusEngine();
 }
 static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus, [[maybe_unused]] gpointer user_data) {
     LOG_TRACE("Entry");
@@ -163,10 +168,6 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
     LOG_DEBUG("factory %p", factory);
     g_object_ref_sink(factory);
 
-    auto conn = ibus_bus_get_connection(g_bus);
-    LOG_DEBUG("ibus connection %p", conn);
-
-    IBusConfigSetup(conn);
 
     g_signal_connect(factory, "create-engine", G_CALLBACK(IBusEngine_OnCreated), nullptr);
 

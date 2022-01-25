@@ -2,7 +2,7 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#include "InputMethod.h"
+#include "Engine.h"
 #include "log.h"
 #include "nlsClient.h"
 #include "nlsEvent.h"
@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-InputMethod::InputMethod(gchar *engine_name, int id, IBusBus *bus) {
+Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
     gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
     m_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(bus));
     LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
@@ -45,31 +45,31 @@ InputMethod::InputMethod(gchar *engine_name, int id, IBusBus *bus) {
     registerCallbacks();
 }
 
-std::map<std::string, InputMethod *> InputMethod::s_engineMap = {};
-InputMethod * InputMethod::IBusEngineToInputMethod(IBusEngine * engine) {
+std::map<std::string, Engine *> Engine::s_engineMap = {};
+Engine *Engine::IBusEngineToInputMethod(IBusEngine * engine) {
     return s_engineMap[ibus_engine_get_name(engine)];
 }
 
 
-IBusEngine *InputMethod::getIBusEngine() { return m_engine; }
-InputMethod::~InputMethod() {
+IBusEngine *Engine::getIBusEngine() { return m_engine; }
+Engine::~Engine() {
     delete m_pinyin;
     delete m_wubi;
 }
-void InputMethod::OnCompleted(std::string text) {
+void Engine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
     ibus_lookup_table_clear(m_table);
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
-void InputMethod::OnFailed() {
+void Engine::OnFailed() {
     engine_commit_text(m_engine, ibus_text_new_from_string(""));
     ibus_lookup_table_clear(m_table);
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
-void InputMethod::OnPartialResult(std::string text) {
+void Engine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
 }
-void InputMethod::registerCallbacks() {
+void Engine::registerCallbacks() {
     g_signal_connect(m_engine, "process-key-event", G_CALLBACK(OnProcessKeyEvent), nullptr);
     g_signal_connect(m_engine, "enable", G_CALLBACK(OnEnable), nullptr);
     g_signal_connect(m_engine, "disable", G_CALLBACK(OnDisable), nullptr);
@@ -78,9 +78,9 @@ void InputMethod::registerCallbacks() {
     g_signal_connect(m_engine, "candidate-clicked", G_CALLBACK(OnCandidateClicked), nullptr);
     g_signal_connect(m_engine, "property-activate", G_CALLBACK(OnPropertyActivate), nullptr);
 }
-void InputMethod::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
-void InputMethod::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
-void InputMethod::Enable() {
+void Engine::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
+void Engine::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
+void Engine::Enable() {
     m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
     LOG_INFO("table %p", m_table);
     g_object_ref_sink(m_table);
@@ -89,14 +89,14 @@ void InputMethod::Enable() {
     ibus_lookup_table_set_page_size(m_table, 5);
     ibus_lookup_table_set_orientation(m_table, IBUS_ORIENTATION_VERTICAL);
 }
-void InputMethod::Disable() {}
-void InputMethod::IBusUpdateIndicator(long recordingTime) {
+void Engine::Disable() {}
+void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()),
                                       TRUE);
 }
 // early return ?
 // return value
-std::pair<bool, bool> InputMethod::ProcessSpeech(guint keyval, guint keycode, guint state) {
+std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint state) {
     SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
     if ((state & IBUS_CONTROL_MASK) && keycode == 41) {
         if (status == SpeechRecognizer::WAITING) {
@@ -124,7 +124,7 @@ std::pair<bool, bool> InputMethod::ProcessSpeech(guint keyval, guint keycode, gu
     }
     return {false, false};
 }
-gboolean InputMethod::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
+gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
     LOG_TRACE("Entry");
     LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
 
@@ -310,55 +310,66 @@ gboolean InputMethod::ProcessKeyEvent(guint keyval, guint keycode, guint state) 
 }
 
 // static
-gboolean InputMethod::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state) {
+gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state) {
     IBusEngineToInputMethod(engine)->ProcessKeyEvent(keyval, keycode, state);
 }
 
 // static
-void InputMethod::OnEnable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Enable(); }
+void Engine::OnEnable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Enable(); }
 
 // static
-void InputMethod::OnDisable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Disable(); }
+void Engine::OnDisable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Disable(); }
 
 // static
-void InputMethod::OnFocusOut(IBusEngine *engine) {}
+void Engine::OnFocusOut(IBusEngine *engine) {}
 
 // static
-void InputMethod::OnFocusIn([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->FocusIn(); }
+void Engine::OnFocusIn([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->FocusIn(); }
 
 // static
-void InputMethod::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
+void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
     IBusEngineToInputMethod(engine)->candidateSelected(index);
 }
 
-void InputMethod::FocusIn() {
+void Engine::FocusIn() {
     LOG_TRACE("Entry");
+    PropertySetup();
+    LOG_TRACE("Exit");
+}
+void Engine::PropertySetup() const {
     auto prop_list = ibus_prop_list_new();
-    LOG_DEBUG("");
-    auto prop1 = ibus_property_new("wubi86_table", PROP_TYPE_TOGGLE, ibus_text_new_from_string("use五笔86table"),
-                                   "audio_ime", ibus_text_new_from_string("use五笔86table"), true, true,
-                                   g_wubi86_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED, nullptr);
-    auto prop2 = ibus_property_new("wubi98_table", PROP_TYPE_TOGGLE, ibus_text_new_from_string("use wubi 98 table"),
-                                   "audio_ime", ibus_text_new_from_string("use wubii 98 table"), true, true,
-                                   g_wubi98_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED, nullptr);
     auto prop3 = ibus_property_new("pinyin_table", PROP_TYPE_TOGGLE, ibus_text_new_from_string("use拼音table"),
                                    "audio_ime", ibus_text_new_from_string("use拼音table"), true, true,
                                    g_pinyin_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED, nullptr);
     auto propx =
         ibus_property_new("preference", PROP_TYPE_NORMAL, ibus_text_new_from_string("preference"), "audio_ime",
                           ibus_text_new_from_string("preference_tool_tip"), true, true, PROP_STATE_CHECKED, nullptr);
+
+    auto propWubiTable = ibus_property_new("wubi86_table", PROP_TYPE_TOGGLE, ibus_text_new_from_string("use五笔86table"),
+                                           "audio_ime", ibus_text_new_from_string("use五笔86table"), true, true,
+                                           g_wubi86_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED, nullptr);
+    auto propSubList = ibus_prop_list_new();
+    ibus_prop_list_append(propSubList, propWubiTable);
+    auto propWubi = ibus_property_new("wubi",
+                                      PROP_TYPE_MENU,
+                                      ibus_text_new_from_string("wubi"),
+                                      "audio_ime",
+                                      ibus_text_new_from_string("wubi"),
+                                      true,
+                                      true,
+                                      PROP_STATE_CHECKED,
+                                      propSubList);
+
     g_object_ref_sink(prop_list);
-    LOG_DEBUG("");
-    ibus_prop_list_append(prop_list, prop1);
-    ibus_prop_list_append(prop_list, prop2);
+    ("");
+    ibus_prop_list_append(prop_list, propWubi);
     ibus_prop_list_append(prop_list, prop3);
     ibus_prop_list_append(prop_list, propx);
-    LOG_DEBUG("");
+    ("");
     ibus_engine_register_properties(m_engine, prop_list);
-    LOG_DEBUG("");
-    LOG_TRACE("Exit");
+    ("");
 }
-void InputMethod::OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
+void Engine::OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
     LOG_TRACE("Entry");
     LOG_INFO("property changed, name:%s, state:%d", name, state);
     if (std::string(name) == "wubi98_table") {
@@ -383,17 +394,17 @@ void InputMethod::OnPropertyActivate(IBusEngine *engine, gchar *name, guint stat
     }
     LOG_TRACE("Exit");
 }
-void InputMethod::engine_reset(IBusEngine *engine, IBusLookupTable *table) {
+void Engine::engine_reset(IBusEngine *engine, IBusLookupTable *table) {
     ibus_lookup_table_clear(table);
     ibus_engine_hide_preedit_text(engine);
     ibus_engine_hide_auxiliary_text(engine);
     ibus_engine_hide_lookup_table(engine);
 }
-void InputMethod::engine_commit_text(IBusEngine *engine, IBusText *text) {
+void Engine::engine_commit_text(IBusEngine *engine, IBusText *text) {
     ibus_engine_commit_text(engine, text);
     engine_reset(engine, m_table);
 }
-std::string InputMethod::IBusMakeIndicatorMsg(long recordingTime) {
+std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
     std::string msg = "press C-` to toggle record[";
     SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
     if (status == SpeechRecognizer::RECODING) {
@@ -405,7 +416,7 @@ std::string InputMethod::IBusMakeIndicatorMsg(long recordingTime) {
     msg += "]";
     return msg;
 }
-void InputMethod::candidateSelected(guint index, bool ignoreText) {
+void Engine::candidateSelected(guint index, bool ignoreText) {
     auto text = ibus_lookup_table_get_candidate(m_table, index);
 
     if (candidates[index]._isPinyin) {

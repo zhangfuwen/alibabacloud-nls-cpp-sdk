@@ -2,8 +2,8 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#ifndef AUDIO_IME_INPUTMETHOD_H
-#define AUDIO_IME_INPUTMETHOD_H
+#ifndef AUDIO_IME_ENGINE_H
+#define AUDIO_IME_ENGINE_H
 
 #include "PinyinIME.h"
 #include "SpeechRecognizer.h"
@@ -37,7 +37,7 @@
 #include <vector>
 #include "wubi.h"
 
-class InputMethod : public ::SpeechListener {
+class Engine : public ::SpeechListener {
     const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
     const std::string wubi98DictPath = "/usr/share/ibus-table/data/wubi98.txt";
     class Config {};
@@ -51,9 +51,9 @@ class InputMethod : public ::SpeechListener {
     std::vector<Candidate> candidates = {};
 
   public:
-    explicit InputMethod(gchar *engine_name, int id, IBusBus *bus);
+    explicit Engine(gchar *engine_name, int id, IBusBus *bus);
     IBusEngine *getIBusEngine();
-    ~InputMethod() override;
+    ~Engine() override;
     void OnCompleted(std::string text) override;
     void OnFailed() override;
     void OnPartialResult(std::string text) override;
@@ -73,14 +73,15 @@ class InputMethod : public ::SpeechListener {
     static void OnFocusOut(IBusEngine *engine);
     static void OnFocusIn([[maybe_unused]] IBusEngine *engine);
     static void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state);
-    static std::map<std::string, InputMethod *> s_engineMap;
-    static InputMethod * IBusEngineToInputMethod(IBusEngine * engine);
+    static std::map<std::string, Engine *> s_engineMap;
+    static Engine * IBusEngineToInputMethod(IBusEngine * engine);
     void FocusIn();
     static void OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data);
     void engine_reset(IBusEngine *engine, IBusLookupTable *table);
     void engine_commit_text(IBusEngine *engine, IBusText *text);
     std::string IBusMakeIndicatorMsg(long recordingTime);
     void candidateSelected(guint index, bool ignoreText = false);
+    void PropertySetup() const;
 };
 
-#endif // AUDIO_IME_INPUTMETHOD_H
+#endif // AUDIO_IME_ENGINE_H
