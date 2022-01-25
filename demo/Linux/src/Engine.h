@@ -41,7 +41,12 @@ class Engine : public ::SpeechListener {
     const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
     const std::string wubi98DictPath = "/usr/share/ibus-table/data/wubi98.txt";
     class Config {};
-    class Property {};
+    struct Property {
+        std::string wubi_table = "";
+        bool pinyin = true;
+        bool speech = true;
+    };
+    Property prop{};
     IBusLookupTable *m_table = nullptr;
     IBusEngine *m_engine = nullptr;
     Wubi *m_wubi = nullptr;

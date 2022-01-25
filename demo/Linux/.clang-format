@@ -1,3 +1,9 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
 ColumnLimit: 120
+
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: AlwaysBreak
+IndentCaseLabels: true
+AllowAllParametersOfDeclarationOnNextLine: false

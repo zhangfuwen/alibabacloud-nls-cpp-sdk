@@ -129,6 +129,7 @@ IBusEngine *IBusEngine_OnCreated(IBusFactory *factory, gchar *engine_name, gpoin
     id += 1;
     g_engine = new Engine(engine_name, id, g_bus);
     LOG_TRACE("Exit");
+
     auto conn = ibus_bus_get_connection(g_bus);
     LOG_DEBUG("ibus connection %p", conn);
     IBusConfigSetup(conn);

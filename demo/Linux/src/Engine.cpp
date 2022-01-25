@@ -46,10 +46,7 @@ Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
 }
 
 std::map<std::string, Engine *> Engine::s_engineMap = {};
-Engine *Engine::IBusEngineToInputMethod(IBusEngine * engine) {
-    return s_engineMap[ibus_engine_get_name(engine)];
-}
-
+Engine *Engine::IBusEngineToInputMethod(IBusEngine *engine) { return s_engineMap[ibus_engine_get_name(engine)]; }
 
 IBusEngine *Engine::getIBusEngine() { return m_engine; }
 Engine::~Engine() {
@@ -91,8 +88,8 @@ void Engine::Enable() {
 }
 void Engine::Disable() {}
 void Engine::IBusUpdateIndicator(long recordingTime) {
-    ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()),
-                                      TRUE);
+    ibus_engine_update_auxiliary_text(
+        m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
 }
 // early return ?
 // return value
@@ -281,8 +278,12 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
                 glong items_read;
                 glong items_written;
                 GError *error;
-                gunichar *utf32_str = g_utf16_to_ucs4(reinterpret_cast<const gunichar2 *>(buffer.data()), buffer.size(),
-                                                      &items_read, &items_written, &error);
+                gunichar *utf32_str = g_utf16_to_ucs4(
+                    reinterpret_cast<const gunichar2 *>(buffer.data()),
+                    buffer.size(),
+                    &items_read,
+                    &items_written,
+                    &error);
                 auto text = ibus_text_new_from_ucs4(utf32_str);
                 candidates.emplace_back(*text, true);
                 ibus_lookup_table_append_candidate(m_table, text);
@@ -338,59 +339,100 @@ void Engine::FocusIn() {
 }
 void Engine::PropertySetup() const {
     auto prop_list = ibus_prop_list_new();
-    auto prop3 = ibus_property_new("pinyin_table", PROP_TYPE_TOGGLE, ibus_text_new_from_string("use拼音table"),
-                                   "audio_ime", ibus_text_new_from_string("use拼音table"), true, true,
-                                   g_pinyin_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED, nullptr);
-    auto propx =
-        ibus_property_new("preference", PROP_TYPE_NORMAL, ibus_text_new_from_string("preference"), "audio_ime",
-                          ibus_text_new_from_string("preference_tool_tip"), true, true, PROP_STATE_CHECKED, nullptr);
+    auto prop_pinyin = ibus_property_new(
+        "pinyin",
+        PROP_TYPE_TOGGLE,
+        ibus_text_new_from_string("label_pinyin"),
+        "audio_ime",
+        ibus_text_new_from_string("tooltip_pinyin"),
+        true,
+        true,
+        g_pinyin_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    auto prop_speech = ibus_property_new(
+        "preference",
+        PROP_TYPE_NORMAL,
+        ibus_text_new_from_string("preference"),
+        "audio_ime",
+        ibus_text_new_from_string("preference_tool_tip"),
+        true,
+        true,
+        PROP_STATE_CHECKED,
+        nullptr);
 
-    auto propWubiTable = ibus_property_new("wubi86_table", PROP_TYPE_TOGGLE, ibus_text_new_from_string("use五笔86table"),
-                                           "audio_ime", ibus_text_new_from_string("use五笔86table"), true, true,
-                                           g_wubi86_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED, nullptr);
-    auto propSubList = ibus_prop_list_new();
-    ibus_prop_list_append(propSubList, propWubiTable);
-    auto propWubi = ibus_property_new("wubi",
-                                      PROP_TYPE_MENU,
-                                      ibus_text_new_from_string("wubi"),
-                                      "audio_ime",
-                                      ibus_text_new_from_string("wubi"),
-                                      true,
-                                      true,
-                                      PROP_STATE_CHECKED,
-                                      propSubList);
+    auto wubi_prop_sub_list = ibus_prop_list_new();
+    auto prop_wubi_table_no = ibus_property_new(
+        "wubi_table_no",
+        PROP_TYPE_RADIO,
+        ibus_text_new_from_string("label_wubi_table_no"),
+        "audio_ime",
+        ibus_text_new_from_string("tooltip_wubi_table_no"),
+        true,
+        true,
+        g_wubi86_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    auto prop_wubi_table_86 = ibus_property_new(
+        "wubi_table_86",
+        PROP_TYPE_RADIO,
+        ibus_text_new_from_string("label_wubi_table_86"),
+        "audio_ime",
+        ibus_text_new_from_string("tooltip_wubi_table_86"),
+        true,
+        true,
+        g_wubi86_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    auto prop_wubi_table_98 = ibus_property_new(
+        "wubi_table_98",
+        PROP_TYPE_RADIO,
+        ibus_text_new_from_string("label_wubi_table_98"),
+        "audio_ime",
+        ibus_text_new_from_string("tooltip_wubi_table_98"),
+        true,
+        true,
+        g_wubi86_table ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    ibus_prop_list_append(wubi_prop_sub_list, prop_wubi_table_no);
+    ibus_prop_list_append(wubi_prop_sub_list, prop_wubi_table_86);
+    ibus_prop_list_append(wubi_prop_sub_list, prop_wubi_table_98);
 
+    auto prop_wubi = ibus_property_new(
+        "wubi",
+        PROP_TYPE_MENU,
+        ibus_text_new_from_string("wubi"),
+        "audio_ime",
+        ibus_text_new_from_string("wubi"),
+        true,
+        true,
+        PROP_STATE_CHECKED,
+        wubi_prop_sub_list);
     g_object_ref_sink(prop_list);
-    ("");
-    ibus_prop_list_append(prop_list, propWubi);
-    ibus_prop_list_append(prop_list, prop3);
-    ibus_prop_list_append(prop_list, propx);
-    ("");
+    ibus_prop_list_append(prop_list, prop_wubi);
+    ibus_prop_list_append(prop_list, prop_pinyin);
+    ibus_prop_list_append(prop_list, prop_speech);
     ibus_engine_register_properties(m_engine, prop_list);
-    ("");
 }
+
+// static
 void Engine::OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
     LOG_TRACE("Entry");
     LOG_INFO("property changed, name:%s, state:%d", name, state);
-    if (std::string(name) == "wubi98_table") {
-        g_wubi98_table = (bool)state;
-        //            if(wubi::g_root == nullptr) {
-        //                wubi::TrieImportWubiTable();
-        //            }
-    } else if (std::string(name) == "wubi86_table") {
-        g_wubi86_table = (bool)state;
-        //            if(wubi::g_root == nullptr) {
-        //                wubi::TrieImportWubiTable();
-        //            }
+    auto ime = IBusEngineToInputMethod(engine);
+    if (std::string(name) == "wubi_table_no") {
+        if(state == 1) {
+            ime->prop.wubi_table = "";
+        }
+    } else if (std::string(name) == "wubi_table_86") {
+        if(state == 1) {
+            ime->prop.wubi_table = ime->wubi86DictPath;
+        }
+    } else if (std::string(name) == "wubi_table_98") {
+        if(state == 1) {
+            ime->prop.wubi_table = ime->wubi98DictPath;
+        }
     } else if (std::string(name) == "pinyin_table") {
-        g_pinyin_table = (bool)state;
+        ime->prop.pinyin = state;
     } else if (std::string(name) == "preference") {
-//        auto engine_desc = ibus_bus_get_global_engine(g_bus);
-//        gchar setup[1024];
-//        const gchar *setup_path = ibus_engine_desc_get_setup(engine_desc);
         g_spawn_command_line_async("audio_ime_setup", nullptr);
-//        LOG_DEBUG("setup path--:%s", setup_path);
-//        g_object_unref(G_OBJECT(engine_desc));
     }
     LOG_TRACE("Exit");
 }
