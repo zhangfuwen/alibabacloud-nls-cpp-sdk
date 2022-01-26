@@ -37,7 +37,7 @@ static_assert(filename("file.cpp") == "file.cpp");
         strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now)); \
         if(logfd)                                                              \
         {                                                                      \
-            fprintf(logfd, "%s %s:%d %s > " fmt "\n", buff, filename(__FILE__).data(),          \
+            fprintf(logfd, "%s %d %d %s:%d %s > " fmt "\n", buff, getpid(), gettid(), filename(__FILE__).data(),          \
                     __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
             fflush(logfd);                                                                       \
         }                                                                       \

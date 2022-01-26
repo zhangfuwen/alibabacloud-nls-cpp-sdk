@@ -98,6 +98,7 @@ private:
     static void
     IBusConfig_OnValueChanged(IBusConfig *config, gchar *section, gchar *name, GVariant *value, gpointer user_data);
     void FocusIn();
+    void FocusOut();
     static void OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data);
     void engine_commit_text(IBusEngine *engine, IBusText *text);
     std::string IBusMakeIndicatorMsg(long recordingTime);

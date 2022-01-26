@@ -78,8 +78,8 @@ void Engine::registerCallbacks() {
 }
 void Engine::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
 void Engine::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
-void Engine::Enable() { m_lookupTable = new LookupTable(this->getIBusEngine()); }
-void Engine::Disable() { delete m_lookupTable; }
+void Engine::Enable() { }
+void Engine::Disable() { }
 void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
@@ -282,7 +282,7 @@ void Engine::OnEnable([[maybe_unused]] IBusEngine *engine, gpointer userdata) { 
 void Engine::OnDisable([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->Disable(); }
 
 // static
-void Engine::OnFocusOut(IBusEngine *engine, gpointer userdata) {}
+void Engine::OnFocusOut(IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->FocusOut(); }
 
 // static
 void Engine::OnFocusIn([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->FocusIn(); }
@@ -342,9 +342,16 @@ void Engine::IBusConfigSetup(GDBusConnection *conn) {
 void Engine::FocusIn() {
     LOG_TRACE("Entry");
     PropertySetup();
+    m_lookupTable = new LookupTable(this->getIBusEngine());
+    LOG_TRACE("Exit");
+}
+void Engine::FocusOut() {
+    LOG_TRACE("Entry");
+    delete m_lookupTable;
     LOG_TRACE("Exit");
 }
 void Engine::PropertySetup() {
+    LOG_TRACE("Entry");
     prop.wubi_table = ConfGetString(CONF_NAME_WUBI);
     auto pinyin = ConfGetString(CONF_NAME_PINYIN);
     if (pinyin.empty()) { // not configured yet
@@ -424,6 +431,7 @@ void Engine::PropertySetup() {
     ibus_prop_list_append(prop_list, prop_pinyin);
     ibus_prop_list_append(prop_list, prop_speech);
     ibus_engine_register_properties(m_engine, prop_list);
+    LOG_TRACE("Exit");
 }
 
 // static
