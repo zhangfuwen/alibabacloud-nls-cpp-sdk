@@ -91,11 +91,6 @@ void SpeechRecognizer::OnRecognitionStarted(AlibabaNls::NlsEvent *cbEvent, void 
 void SpeechRecognizer::OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent, [[maybe_unused]] void *cbParam) {
     LOG_INFO("result changed");
     m_speechListerner.OnPartialResult(cbEvent->getResult());
-    //    ibus_lookup_table_append_candidate(m_table,
-    //    ibus_text_new_from_string(cbEvent->getResult()));
-    //    ibus_engine_update_lookup_table_fast(m_engine, m_table, TRUE); // this
-    //    line determines if lookup table is displayed
-    //    ibus_lookup_table_set_cursor_pos(m_table, 0);
 }
 
 /**

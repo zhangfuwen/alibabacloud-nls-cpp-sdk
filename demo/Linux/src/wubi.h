@@ -35,7 +35,7 @@ class Wubi {
     TrieNode *m_trieRoot = nullptr;
     std::unordered_map<std::string, std::string> m_wubiCodeSearcher; // chinese to zigen table
     bool m_searchCode = true;
-    std::vector<Candidate> m_searchResult;
+    std::vector<CandidateAttr> m_searchResult;
 }; // Returns new trie node (initialized to nullptrs)
 
 struct TrieNode *NewNode();

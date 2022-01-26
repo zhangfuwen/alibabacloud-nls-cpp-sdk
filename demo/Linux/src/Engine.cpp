@@ -57,12 +57,10 @@ Engine::~Engine() {
 }
 void Engine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
-    ibus_lookup_table_clear(m_table);
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
 void Engine::OnFailed() {
     engine_commit_text(m_engine, ibus_text_new_from_string(""));
-    ibus_lookup_table_clear(m_table);
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
 void Engine::OnPartialResult(std::string text) {
@@ -80,15 +78,11 @@ void Engine::registerCallbacks() {
 void Engine::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
 void Engine::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
 void Engine::Enable() {
-    m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
-    LOG_INFO("table %p", m_table);
-    g_object_ref_sink(m_table);
-
-    ibus_lookup_table_set_round(m_table, true);
-    ibus_lookup_table_set_page_size(m_table, 5);
-    ibus_lookup_table_set_orientation(m_table, IBUS_ORIENTATION_VERTICAL);
+    m_lookupTable = new LookupTable(this->getIBusEngine());
 }
-void Engine::Disable() {}
+void Engine::Disable() {
+    delete m_lookupTable;
+}
 void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
@@ -109,7 +103,7 @@ std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint s
         } else {
             m_speechRecognizer->Stop();
         }
-        ibus_engine_hide_lookup_table(m_engine);
+        m_lookupTable->Show();
         ibus_engine_show_preedit_text(m_engine);
         ibus_engine_show_auxiliary_text(m_engine);
         return {true, true};
@@ -145,61 +139,15 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
             LOG_INFO("caps lock pressed");
             // caps lock
             m_input = "";
-            ibus_lookup_table_clear(m_table);
+            m_lookupTable->Clear();
+            m_lookupTable->Hide();
             ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(""), true);
-            ibus_engine_hide_lookup_table(m_engine);
             ibus_engine_hide_preedit_text(m_engine);
             ibus_engine_hide_auxiliary_text(m_engine);
             return true;
         }
-        if (keyval == IBUS_KEY_equal || keyval == IBUS_KEY_Right) {
-            LOG_DEBUG("equal pressed");
-            ibus_lookup_table_page_down(m_table);
-            guint cursor = ibus_lookup_table_get_cursor_in_page(m_table);
-            LOG_INFO("cursor pos %d", cursor);
-            cursor = ibus_lookup_table_get_cursor_pos(m_table);
-            LOG_INFO("cursor pos(global) %d", cursor);
-            ibus_engine_update_lookup_table_fast(m_engine, m_table, true);
-            //            ibus_engine_forward_key_event(m_engine, keyval,
-            //            keycode, state);
-            return true;
-        }
-        if (keyval == IBUS_KEY_minus || keyval == IBUS_KEY_Left) {
-            LOG_DEBUG("minus pressed");
-            ibus_lookup_table_page_up(m_table);
-            guint cursor = ibus_lookup_table_get_cursor_in_page(m_table);
-            LOG_INFO("cursor pos %d", cursor);
-            cursor = ibus_lookup_table_get_cursor_pos(m_table);
-            LOG_INFO("cursor pos(global) %d", cursor);
-            ibus_lookup_table_set_cursor_pos(m_table, 3);
-            ibus_engine_update_lookup_table_fast(m_engine, m_table, true);
-            return true;
-        }
-        if (keyval == IBUS_KEY_Down) {
-            LOG_DEBUG("down pressed");
-            // ibus_lookup_table_cursor_down(m_table);
-            bool ret = ibus_lookup_table_cursor_down(m_table);
-            if (!ret) {
-                LOG_ERROR("failed to put cursor down");
-            }
-            guint cursor = ibus_lookup_table_get_cursor_in_page(m_table);
-            LOG_INFO("cursor pos %d", cursor);
-            cursor = ibus_lookup_table_get_cursor_pos(m_table);
-            LOG_INFO("cursor pos(global) %d", cursor);
-            ibus_engine_update_lookup_table_fast(m_engine, m_table, true);
-            return true;
-        }
-        if (keyval == IBUS_KEY_Up) {
-            LOG_DEBUG("up pressed");
-            bool ret = ibus_lookup_table_cursor_up(m_table);
-            if (!ret) {
-                LOG_ERROR("failed to put cursor up");
-            }
-            guint cursor = ibus_lookup_table_get_cursor_in_page(m_table);
-            LOG_INFO("cursor pos %d", cursor);
-            cursor = ibus_lookup_table_get_cursor_pos(m_table);
-            LOG_INFO("cursor pos(global) %d", cursor);
-            ibus_engine_update_lookup_table_fast(m_engine, m_table, true);
+        auto ret =LookupTableNavigate(keyval);
+        if(ret) {
             return true;
         }
         if (keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return || isdigit((char)(keyval)) || keycode == 1) {
@@ -207,14 +155,11 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
                 return false;
             }
             LOG_DEBUG("space pressed");
-            guint cursor = ibus_lookup_table_get_cursor_pos(m_table);
+            int index = -1;
             if (isdigit((char)keyval)) {
-                guint cursor_page = ibus_lookup_table_get_cursor_in_page(m_table);
-                int index = (int)(keyval - IBUS_KEY_0);
-                cursor = cursor + (index - cursor_page) - 1;
-                LOG_DEBUG("cursor_page:%d, index:%d, cursor:%d", cursor_page, index, cursor);
-                ibus_lookup_table_set_cursor_pos(m_table, cursor);
+                index = (int)(keyval - IBUS_KEY_0);
             }
+            auto cursor = m_lookupTable->GetGlobalCursor(index);
             candidateSelected(cursor, keycode == 1);
             return true;
         }
@@ -232,28 +177,30 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         // chinese mode
         ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(m_input.c_str()), true);
 
+        m_lookupTable->Clear();
         // get pinyin candidates
         unsigned int numCandidates = 0;
-        if (g_pinyin_table) {
+        if (prop.pinyin) {
             numCandidates = m_pinyin->Search(m_input);
         }
         LOG_INFO("num candidates %u for %s", numCandidates, m_input.c_str());
 
+
         // get wubi candidates
         LOG_DEBUG("");
-        TrieNode *x = m_wubi->Search(m_input);
+        TrieNode *x = nullptr;
+        if(!prop.wubi_table.empty()) { // no searching , no data
+            x = m_wubi->Search(m_input);
+        }
         std::map<uint64_t, std::string> m;
         SubTreeTraversal(m, x); // insert subtree and reorder
 
-        ibus_lookup_table_clear(m_table);
-        candidates.clear();
         if (x != nullptr && x->isEndOfWord) {
             auto it = x->values.rbegin();
             std::string candidate = it->second;
             // best exact match first
             auto text = ibus_text_new_from_string(candidate.c_str());
-            candidates.emplace_back(*text);
-            ibus_lookup_table_append_candidate(m_table, text);
+            m_lookupTable->Append(text, false);
             LOG_INFO("first %s", text->text);
             it++;
             while (it != x->values.rend()) {
@@ -273,8 +220,7 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
                 auto value = it->second;
                 std::string &candidate = value;
                 auto text = ibus_text_new_from_string(candidate.c_str());
-                candidates.emplace_back(*text);
-                ibus_lookup_table_append_candidate(m_table, text);
+                m_lookupTable->Append(text, false);
                 it++;
             }
             if (j < numCandidates) {
@@ -289,34 +235,56 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
                     &items_written,
                     &error);
                 auto text = ibus_text_new_from_ucs4(utf32_str);
-                candidates.emplace_back(*text, true);
-                ibus_lookup_table_append_candidate(m_table, text);
+                m_lookupTable->Append(text, true);
                 j++;
             }
         }
-        /*
-        for(auto cand : candidates) {
-             ibus_lookup_table_append_candidate(m_table, &cand._text);
-        }
-         */
 
-        ibus_engine_update_lookup_table_fast(m_engine, m_table, TRUE);
-        ibus_engine_show_lookup_table(m_engine);
+        m_lookupTable->Update();
+        m_lookupTable->Show();
 
         return true;
 
     } else {
         // english mode
-        ibus_engine_hide_lookup_table(m_engine);
+        m_lookupTable->Hide();
         ibus_engine_hide_preedit_text(m_engine);
         ibus_engine_hide_auxiliary_text(m_engine);
         return false;
     }
 }
+bool Engine::LookupTableNavigate(guint keyval) {
+    bool return1 = false;
+    if (keyval == IBUS_KEY_equal || keyval == IBUS_KEY_Right) {
+        LOG_DEBUG("equal pressed");
+        m_lookupTable->PageDown();
+        m_lookupTable->Update();
+        return1 = true;
+    }
+    if (keyval == IBUS_KEY_minus || keyval == IBUS_KEY_Left) {
+        LOG_DEBUG("minus pressed");
+        m_lookupTable->PageUp();
+        m_lookupTable->Update();
+        return1 = true;
+    }
+    if (keyval == IBUS_KEY_Down) {
+        LOG_DEBUG("down pressed");
+        m_lookupTable->CursorDown();
+        m_lookupTable->Update();
+        return1 = true;
+    }
+    if (keyval == IBUS_KEY_Up) {
+        LOG_DEBUG("up pressed");
+        m_lookupTable->CursorUp();
+        m_lookupTable->Update();
+        return1 = true;
+    }
+    return return1;
+}
 
 // static
 gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state, void *userdata) {
-    Engine *myengine = (Engine *)userdata;
+    auto *myengine = (Engine *)userdata;
     myengine->ProcessKeyEvent(keyval, keycode, state);
 }
 
@@ -504,15 +472,12 @@ void Engine::OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gp
     }
     LOG_TRACE("Exit");
 }
-void Engine::engine_reset(IBusEngine *engine, IBusLookupTable *table) {
-    ibus_lookup_table_clear(table);
-    ibus_engine_hide_preedit_text(engine);
-    ibus_engine_hide_auxiliary_text(engine);
-    ibus_engine_hide_lookup_table(engine);
-}
 void Engine::engine_commit_text(IBusEngine *engine, IBusText *text) {
     ibus_engine_commit_text(engine, text);
-    engine_reset(engine, m_table);
+    ibus_engine_hide_preedit_text(engine);
+    ibus_engine_hide_auxiliary_text(engine);
+    m_lookupTable->Clear();
+    m_lookupTable->Hide();
 }
 std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
     std::string msg = "press C-` to toggle record[";
@@ -527,30 +492,29 @@ std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
     return msg;
 }
 void Engine::candidateSelected(guint index, bool ignoreText) {
-    auto text = ibus_lookup_table_get_candidate(m_table, index);
+    auto cand = m_lookupTable->GetCandidateGlobal(index);
 
-    if (candidates[index]._isPinyin) {
-        std::string code = m_wubi->CodeSearch(text->text);
+    if (cand.isPinyin) {
+        std::string code = m_wubi->CodeSearch(cand.text->text);
         if (code.empty()) {
             ibus_engine_hide_auxiliary_text(m_engine);
         } else {
             std::string hint = "五笔[" + code + "]";
             ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(hint.c_str()), true);
-            LOG_INFO("cursor:%d, text:%s, wubi code:%s - %lu", index, text->text, code.c_str(), code.size());
+            LOG_INFO("cursor:%d, text:%s, wubi code:%s - %lu", index, cand.text->text, code.c_str(), code.size());
         }
     } else {
-        LOG_INFO("cursor:%d, text:%s, is not pinyin", index, text->text);
+        LOG_INFO("cursor:%d, text:%s, is not pinyin", index, cand.text->text);
         ibus_engine_hide_auxiliary_text(m_engine);
     }
     if (!ignoreText) { // which means escape
-        ibus_engine_commit_text(m_engine, text);
+        ibus_engine_commit_text(m_engine, cand.text);
     }
-    ibus_lookup_table_clear(m_table);
-    ibus_engine_update_lookup_table_fast(m_engine, m_table, true);
-    ibus_engine_hide_lookup_table(m_engine);
+    m_lookupTable->Clear();
+    m_lookupTable->Update();
+    m_lookupTable->Hide();
     ibus_engine_hide_preedit_text(m_engine);
     m_input.clear();
-    candidates.clear();
 }
 std::string Engine::ConfGetString(const std::string &name) const {
     std::string val;
