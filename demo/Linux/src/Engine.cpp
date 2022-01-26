@@ -41,6 +41,7 @@ SpeechRecognizer * g_speechRecognizer = nullptr;
 Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
     gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
     m_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(bus));
+    g_free(path);
     LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
     // Setup Lookup table
     if(!g_wubi) {
@@ -64,6 +65,7 @@ Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
 
 IBusEngine *Engine::getIBusEngine() { return m_engine; }
 Engine::~Engine() {
+    g_object_unref(m_engine);
 //    delete m_pinyin;
 //    delete m_wubi;
 //    delete m_speechRecognizer;
