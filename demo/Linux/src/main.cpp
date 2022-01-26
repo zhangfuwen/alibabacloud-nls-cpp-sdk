@@ -34,6 +34,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <glib/gi18n.h>
+#include <locale.h>
+#include "common.h"
 
 #include "Engine.h"
 #include "PinyinIME.h"
@@ -80,6 +83,11 @@ static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus, [[maybe_unused]]
 }
 
 int main([[maybe_unused]] gint argc, gchar **argv) {
+    setlocale (LC_ALL, "");
+    bindtextdomain (GETTEXT_PACKAGE, "/usr/share/ibus/ibus-audio/data/language");
+    bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+    textdomain (GETTEXT_PACKAGE);
+
     signal(SIGTERM, sigterm_cb);
     signal(SIGINT, sigterm_cb);
     signal(SIGSEGV, signal_handler);

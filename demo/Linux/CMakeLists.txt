@@ -104,6 +104,7 @@ INSTALL(FILES res/dict_pinyin.dat DESTINATION /usr/share/ibus-table/data PERMISS
 INSTALL(FILES res/wubi86.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES res/wubi98.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES res/audio_ime.png DESTINATION /usr/share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES language/zh_CN/LC_MESSAGES/messages.mo DESTINATION /usr/share/ibus/ibus-audio/data/language/zh_CN/LC_MESSAGES/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ)
 
 INCLUDE(CPack)
 # 实时识别
@@ -123,6 +124,7 @@ INCLUDE(CPack)
 #target_link_libraries(daDemo
 #    alibabacloud-idst-speech
 #    pthread z dl)
-
+# xgettext -k_ -o language/zh_CN/LC_MESSAGES/messages.po ./src/Engine.cpp
+#  msgfmt -o language/zh_CN/LC_MESSAGES/messages.mo language/zh_CN/LC_MESSAGES/messages.po
 
 

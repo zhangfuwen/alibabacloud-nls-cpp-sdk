@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "common.h"
 #include "Engine.h"
 #include "log.h"
 #include "wubi.h"
@@ -355,7 +356,7 @@ void Engine::PropertySetup() {
     auto prop_pinyin = ibus_property_new(
         "pinyin",
         PROP_TYPE_TOGGLE,
-        ibus_text_new_from_string("label_pinyin"),
+        ibus_text_new_from_string(_("label_pinyin")),
         "audio_ime",
         ibus_text_new_from_string("tooltip_pinyin"),
         true,
@@ -365,7 +366,7 @@ void Engine::PropertySetup() {
     auto prop_speech = ibus_property_new(
         "preference",
         PROP_TYPE_NORMAL,
-        ibus_text_new_from_string("preference"),
+        ibus_text_new_from_string(_("preference")),
         "audio_ime",
         ibus_text_new_from_string("preference_tool_tip"),
         true,
@@ -377,7 +378,7 @@ void Engine::PropertySetup() {
     auto prop_wubi_table_no = ibus_property_new(
         "wubi_table_no",
         PROP_TYPE_RADIO,
-        ibus_text_new_from_string("label_wubi_table_no"),
+        ibus_text_new_from_string(_("label_wubi_table_no")),
         "audio_ime",
         ibus_text_new_from_string("tooltip_wubi_table_no"),
         true,
@@ -387,7 +388,7 @@ void Engine::PropertySetup() {
     auto prop_wubi_table_86 = ibus_property_new(
         "wubi_table_86",
         PROP_TYPE_RADIO,
-        ibus_text_new_from_string("label_wubi_table_86"),
+        ibus_text_new_from_string(_("label_wubi_table_86")),
         "audio_ime",
         ibus_text_new_from_string("tooltip_wubi_table_86"),
         true,
@@ -397,7 +398,7 @@ void Engine::PropertySetup() {
     auto prop_wubi_table_98 = ibus_property_new(
         "wubi_table_98",
         PROP_TYPE_RADIO,
-        ibus_text_new_from_string("label_wubi_table_98"),
+        ibus_text_new_from_string(_("label_wubi_table_98")),
         "audio_ime",
         ibus_text_new_from_string("tooltip_wubi_table_98"),
         true,
@@ -411,7 +412,7 @@ void Engine::PropertySetup() {
     auto prop_wubi = ibus_property_new(
         "wubi",
         PROP_TYPE_MENU,
-        ibus_text_new_from_string("wubi"),
+        ibus_text_new_from_string(_("wubi")),
         "audio_ime",
         ibus_text_new_from_string("wubi"),
         true,
