@@ -77,12 +77,8 @@ void Engine::registerCallbacks() {
 }
 void Engine::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
 void Engine::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
-void Engine::Enable() {
-    m_lookupTable = new LookupTable(this->getIBusEngine());
-}
-void Engine::Disable() {
-    delete m_lookupTable;
-}
+void Engine::Enable() { m_lookupTable = new LookupTable(this->getIBusEngine()); }
+void Engine::Disable() { delete m_lookupTable; }
 void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
@@ -91,7 +87,7 @@ void Engine::IBusUpdateIndicator(long recordingTime) {
 // return value
 std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint state) {
     SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
-    if ((state & IBUS_CONTROL_MASK) && keycode == 41) {
+    if ((state & IBUS_CONTROL_MASK) && keyval == IBUS_KEY_grave) {
         LOG_DEBUG("status = %d", status);
         if (status == SpeechRecognizer::WAITING) {
             LOG_DEBUG("waiting");
@@ -120,126 +116,53 @@ std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint s
     return {false, false};
 }
 gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
-    LOG_TRACE("Entry");
-    LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
-
-    if (state & IBUS_RELEASE_MASK) {
+    if (state & IBUS_RELEASE_MASK) { // only respond to key down
         return FALSE;
     }
 
+    LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
+
     if (m_speechRecognizer != nullptr) {
         auto ret = ProcessSpeech(keyval, keycode, state);
-        if (ret.first) {
+        if (ret.first) { // early return
             return ret.second;
         }
     }
 
-    if (state & IBUS_LOCK_MASK) {
-        if (keycode == 58) {
+    if (state & IBUS_LOCK_MASK) {           // previously chinese mode
+        if (keyval == IBUS_KEY_Caps_Lock) { // chinese to english mode
             LOG_INFO("caps lock pressed");
-            // caps lock
-            m_input = "";
-            m_lookupTable->Clear();
-            m_lookupTable->Hide();
-            ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(""), true);
-            ibus_engine_hide_preedit_text(m_engine);
-            ibus_engine_hide_auxiliary_text(m_engine);
+            ToggleToEnglishMode();
             return true;
         }
-        auto ret =LookupTableNavigate(keyval);
-        if(ret) {
+
+        auto ret = LookupTableNavigate(keyval);
+        if (ret) {
             return true;
         }
+
         if (keyval == IBUS_KEY_space || keyval == IBUS_KEY_Return || isdigit((char)(keyval)) || keycode == 1) {
             if (m_input.empty()) {
                 return false;
             }
-            LOG_DEBUG("space pressed");
-            int index = -1;
-            if (isdigit((char)keyval)) {
-                index = (int)(keyval - IBUS_KEY_0);
-            }
-            auto cursor = m_lookupTable->GetGlobalCursor(index);
-            candidateSelected(cursor, keycode == 1);
+            int index = isdigit((char)(keyval)) ? (int)(keyval - IBUS_KEY_0) : -1;
+            candidateSelected(m_lookupTable->GetGlobalCursor(index), keycode == 1);
             return true;
         }
 
         LOG_DEBUG("keyval %x, m_input.size:%lu", keyval, m_input.size());
-        if (keyval == IBUS_KEY_BackSpace && !m_input.empty()) {
+        if (keyval == IBUS_KEY_BackSpace && !m_input.empty()) { // delete
             m_input = m_input.substr(0, m_input.size() - 1);
-        } else {
-            if (!isalpha((char)keyval)) {
-                // only process letters and numbers
-                return false;
-            }
+        } else if (isalpha((char)keyval)) { // append new
             m_input += (char)tolower((int)keyval);
+        } else { // don't know how to handle it
+            return false;
         }
         // chinese mode
         ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(m_input.c_str()), true);
 
         m_lookupTable->Clear();
-        // get pinyin candidates
-        unsigned int numCandidates = 0;
-        if (prop.pinyin) {
-            numCandidates = m_pinyin->Search(m_input);
-        }
-        LOG_INFO("num candidates %u for %s", numCandidates, m_input.c_str());
-
-
-        // get wubi candidates
-        LOG_DEBUG("");
-        TrieNode *x = nullptr;
-        if(!prop.wubi_table.empty()) { // no searching , no data
-            x = m_wubi->Search(m_input);
-        }
-        std::map<uint64_t, std::string> m;
-        SubTreeTraversal(m, x); // insert subtree and reorder
-
-        if (x != nullptr && x->isEndOfWord) {
-            auto it = x->values.rbegin();
-            std::string candidate = it->second;
-            // best exact match first
-            auto text = ibus_text_new_from_string(candidate.c_str());
-            m_lookupTable->Append(text, false);
-            LOG_INFO("first %s", text->text);
-            it++;
-            while (it != x->values.rend()) {
-                m.insert(*it); // insert to reorder
-                it++;
-            }
-        }
-
-        int j = 0;
-        LOG_INFO("map size:%lu", m.size());
-        auto it = m.rbegin();
-        while (true) {
-            if (j >= numCandidates && it == m.rend()) {
-                break;
-            }
-            if (it != m.rend()) {
-                auto value = it->second;
-                std::string &candidate = value;
-                auto text = ibus_text_new_from_string(candidate.c_str());
-                m_lookupTable->Append(text, false);
-                it++;
-            }
-            if (j < numCandidates) {
-                std::wstring buffer = m_pinyin->GetCandidate(j);
-                glong items_read;
-                glong items_written;
-                GError *error;
-                gunichar *utf32_str = g_utf16_to_ucs4(
-                    reinterpret_cast<const gunichar2 *>(buffer.data()),
-                    buffer.size(),
-                    &items_read,
-                    &items_written,
-                    &error);
-                auto text = ibus_text_new_from_ucs4(utf32_str);
-                m_lookupTable->Append(text, true);
-                j++;
-            }
-        }
-
+        WubiPinyinQuery();
         m_lookupTable->Update();
         m_lookupTable->Show();
 
@@ -253,6 +176,72 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         return false;
     }
 }
+void Engine::WubiPinyinQuery() { // get pinyin candidates
+    unsigned int nPinyinCandidates = 0;
+    if (prop.pinyin) {
+        nPinyinCandidates = m_pinyin->Search(m_input);
+    }
+    LOG_INFO("num candidates %u for %s", nPinyinCandidates, m_input.c_str());
+
+    // get wubi candidates
+    TrieNode *wubiSubtree = nullptr;
+    if (!prop.wubi_table.empty()) { // no searching , no data
+        wubiSubtree = m_wubi->Search(m_input);
+    }
+    map<uint64_t, string> m;
+    if (wubiSubtree != nullptr && wubiSubtree->isEndOfWord) {
+        // best exact match first
+        auto it = wubiSubtree->values.rbegin();
+        string candidate = it->second;
+        auto text = ibus_text_new_from_string(candidate.c_str());
+        m_lookupTable->Append(text, false);
+
+        // others
+        it++;
+        while (it != wubiSubtree->values.rend()) {
+            m.insert(*it); // insert to reorder
+            it++;
+        }
+    }
+    SubTreeTraversal(m, wubiSubtree); // insert subtree and reorder
+
+    // wubi and pinyin candidate one after another
+    int j = 0;
+    LOG_INFO("map size:%lu", m.size());
+    auto it = m.rbegin();
+    while (true) {
+        if (j >= nPinyinCandidates && it == m.rend()) {
+            break;
+        }
+        if (it != m.rend()) {
+            auto value = it->second;
+            string &candidate = value;
+            auto text = ibus_text_new_from_string(candidate.c_str());
+            m_lookupTable->Append(text, false);
+            it++;
+        }
+        if (j < nPinyinCandidates) {
+            wstring buffer = m_pinyin->GetCandidate(j);
+            glong items_read;
+            glong items_written;
+            GError *error;
+            gunichar *utf32_str = g_utf16_to_ucs4(
+                reinterpret_cast<const gunichar2 *>(buffer.data()), buffer.size(), &items_read, &items_written, &error);
+            auto text = ibus_text_new_from_ucs4(utf32_str);
+            m_lookupTable->Append(text, true);
+            j++;
+        }
+    }
+}
+void Engine::ToggleToEnglishMode() { // commit input as english
+    engine_commit_text(getIBusEngine(), ibus_text_new_from_string(m_input.c_str()));
+    m_input = "";
+    m_lookupTable->Clear();
+    m_lookupTable->Hide();
+    ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(""), true);
+    ibus_engine_hide_preedit_text(m_engine);
+    ibus_engine_hide_auxiliary_text(m_engine);
+}
 bool Engine::LookupTableNavigate(guint keyval) {
     bool return1 = false;
     if (keyval == IBUS_KEY_equal || keyval == IBUS_KEY_Right) {
@@ -260,20 +249,17 @@ bool Engine::LookupTableNavigate(guint keyval) {
         m_lookupTable->PageDown();
         m_lookupTable->Update();
         return1 = true;
-    }
-    if (keyval == IBUS_KEY_minus || keyval == IBUS_KEY_Left) {
+    } else if (keyval == IBUS_KEY_minus || keyval == IBUS_KEY_Left) {
         LOG_DEBUG("minus pressed");
         m_lookupTable->PageUp();
         m_lookupTable->Update();
         return1 = true;
-    }
-    if (keyval == IBUS_KEY_Down) {
+    } else if (keyval == IBUS_KEY_Down) {
         LOG_DEBUG("down pressed");
         m_lookupTable->CursorDown();
         m_lookupTable->Update();
         return1 = true;
-    }
-    if (keyval == IBUS_KEY_Up) {
+    } else if (keyval == IBUS_KEY_Up) {
         LOG_DEBUG("up pressed");
         m_lookupTable->CursorUp();
         m_lookupTable->Update();
@@ -283,9 +269,9 @@ bool Engine::LookupTableNavigate(guint keyval) {
 }
 
 // static
-gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state, void *userdata) {
+gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyVal, guint keycode, guint state, void *userdata) {
     auto *myengine = (Engine *)userdata;
-    myengine->ProcessKeyEvent(keyval, keycode, state);
+    myengine->ProcessKeyEvent(keyVal, keycode, state);
 }
 
 // static
@@ -540,4 +526,62 @@ void Engine::ConfSetString(std::string name, std::string val) {
     if (!ret) {
         LOG_ERROR("failed to set config %s", name.c_str());
     }
+}
+
+LookupTable::LookupTable(IBusEngine *engine) {
+    m_engine = engine;
+    m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
+    LOG_INFO("table %p", m_table);
+    g_object_ref_sink(m_table);
+
+    ibus_lookup_table_set_round(m_table, true);
+    ibus_lookup_table_set_page_size(m_table, 5);
+    ibus_lookup_table_set_orientation(m_table, IBUS_ORIENTATION_VERTICAL);
+}
+LookupTable::~LookupTable() {
+    Clear();
+    Hide();
+    g_object_unref(m_table);
+}
+void LookupTable::Append(IBusText *text, bool pinyin) {
+    ibus_lookup_table_append_candidate(m_table, text);
+    m_candidateAttrs.emplace_back(pinyin);
+}
+void LookupTable::Show() { ibus_engine_show_lookup_table(m_engine); }
+void LookupTable::Hide() { ibus_engine_hide_lookup_table(m_engine); }
+void LookupTable::PageUp() { ibus_lookup_table_page_up(m_table); }
+void LookupTable::PageDown() { ibus_lookup_table_page_down(m_table); }
+void LookupTable::CursorDown() {
+    bool ret = ibus_lookup_table_cursor_down(m_table);
+    if (!ret) {
+        LOG_ERROR("failed to put cursor down");
+    }
+}
+void LookupTable::CursorUp() {
+    bool ret = ibus_lookup_table_cursor_up(m_table);
+    if (!ret) {
+        LOG_ERROR("failed to put cursor up");
+    }
+}
+
+Candidate LookupTable::GetCandidateGlobal(guint globalCursor) {
+    Candidate cand;
+    auto text = ibus_lookup_table_get_candidate(m_table, globalCursor);
+    auto attr = m_candidateAttrs[globalCursor];
+    cand.isPinyin = attr._isPinyin;
+    cand.text = text;
+    return cand;
+}
+guint LookupTable::GetGlobalCursor(int index) {
+    guint cursor = ibus_lookup_table_get_cursor_pos(m_table);
+    if (index >= 0) {
+        guint cursor_page = ibus_lookup_table_get_cursor_in_page(m_table);
+        cursor = cursor + (index - cursor_page) - 1;
+    }
+    return cursor;
+}
+void LookupTable::Update() { ibus_engine_update_lookup_table_fast(m_engine, m_table, true); }
+void LookupTable::Clear() {
+    ibus_lookup_table_clear(m_table);
+    m_candidateAttrs.clear();
 }

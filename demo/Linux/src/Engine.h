@@ -36,6 +36,32 @@
 #include <utility>
 #include <vector>
 
+struct Candidate {
+    bool isPinyin;
+    IBusText * text;
+    std::string code;
+};
+class LookupTable {
+    IBusEngine * m_engine = nullptr;
+    IBusLookupTable *m_table = nullptr;
+    std::vector<CandidateAttr> m_candidateAttrs = {};
+
+public:
+    explicit LookupTable(IBusEngine * engine);
+    ~LookupTable() ;
+    void Append(IBusText *text, bool pinyin);
+    void Show();
+    void Hide();
+    void PageUp();
+    void PageDown();
+    void CursorDown();
+    void CursorUp();
+    Candidate GetCandidateGlobal(guint globalCursor);
+    guint GetGlobalCursor(int index);
+    void Update();
+    void Clear();
+};
+
 class Engine : public ::SpeechListener {
 private:
     const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
@@ -44,87 +70,6 @@ private:
         std::string wubi_table = "";
         bool pinyin = true;
         bool speech = true;
-    };
-
-    struct Candidate {
-        bool isPinyin;
-        IBusText * text;
-        std::string code;
-    };
-
-    class LookupTable {
-        IBusEngine * m_engine = nullptr;
-        IBusLookupTable *m_table = nullptr;
-        std::vector<CandidateAttr> m_candidateAttrs = {};
-
-    public:
-        explicit LookupTable(IBusEngine * engine) {
-            m_engine = engine;
-            m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
-            LOG_INFO("table %p", m_table);
-            g_object_ref_sink(m_table);
-
-            ibus_lookup_table_set_round(m_table, true);
-            ibus_lookup_table_set_page_size(m_table, 5);
-            ibus_lookup_table_set_orientation(m_table, IBUS_ORIENTATION_VERTICAL);
-        }
-        ~LookupTable() {
-            Clear();
-            Hide();
-            g_object_unref(m_table);
-        }
-        void Append(IBusText *text, bool pinyin) {
-            ibus_lookup_table_append_candidate(m_table, text);
-            m_candidateAttrs.emplace_back(pinyin);
-        }
-        void Show() {
-            ibus_engine_show_lookup_table(m_engine);
-        }
-        void Hide() {
-            ibus_engine_hide_lookup_table(m_engine);
-        }
-        void PageUp() {
-            ibus_lookup_table_page_up(m_table);
-        }
-        void PageDown() {
-            ibus_lookup_table_page_down(m_table);
-        }
-        void CursorDown() {
-            bool ret = ibus_lookup_table_cursor_down(m_table);
-            if (!ret) {
-                    LOG_ERROR("failed to put cursor down");
-            }
-        }
-        void CursorUp() {
-            bool ret = ibus_lookup_table_cursor_up(m_table);
-            if (!ret) {
-                    LOG_ERROR("failed to put cursor up");
-            }
-        }
-
-        Candidate GetCandidateGlobal(guint globalCursor) {
-            Candidate cand;
-            auto text = ibus_lookup_table_get_candidate(m_table, globalCursor);
-            auto attr = m_candidateAttrs[globalCursor];
-            cand.isPinyin = attr._isPinyin;
-            cand.text = text;
-            return cand;
-        }
-        guint GetGlobalCursor(int index) {
-            guint cursor = ibus_lookup_table_get_cursor_pos(m_table);
-            if(index >= 0) {
-                guint cursor_page = ibus_lookup_table_get_cursor_in_page(m_table);
-                cursor = cursor + (index - cursor_page) - 1;
-            }
-            return cursor;
-        }
-        void Update() {
-            ibus_engine_update_lookup_table_fast(m_engine, m_table, true);
-        }
-        void Clear() {
-            ibus_lookup_table_clear(m_table);
-            m_candidateAttrs.clear();
-        }
     };
 
     Property prop{};
@@ -137,7 +82,6 @@ private:
 
     LookupTable *m_lookupTable = nullptr;
 
-
     std::string ConfGetString(const std::string &name) const;
     void ConfSetString(std::string name, std::string val);
 
@@ -145,7 +89,7 @@ private:
     // return value
     std::pair<bool, bool> ProcessSpeech(guint keyval, guint keycode, guint state);
     gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);
-    static gboolean OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state, void *userdata);
+    static gboolean OnProcessKeyEvent(IBusEngine *engine, guint keyVal, guint keycode, guint state, void *userdata);
     static void OnEnable([[maybe_unused]] IBusEngine *engine, gpointer userdata);
     static void OnDisable([[maybe_unused]] IBusEngine *engine, gpointer userdata);
     static void OnFocusOut(IBusEngine *engine, gpointer userdata);
@@ -155,12 +99,13 @@ private:
     IBusConfig_OnValueChanged(IBusConfig *config, gchar *section, gchar *name, GVariant *value, gpointer user_data);
     void FocusIn();
     static void OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data);
-    void engine_reset(IBusEngine *engine, IBusLookupTable *table);
     void engine_commit_text(IBusEngine *engine, IBusText *text);
     std::string IBusMakeIndicatorMsg(long recordingTime);
     void candidateSelected(guint index, bool ignoreText = false);
     void PropertySetup();
     bool LookupTableNavigate(guint keyval);
+    void ToggleToEnglishMode();
+    void WubiPinyinQuery();
 
 public:
     explicit Engine(gchar *engine_name, int id, IBusBus *bus);
