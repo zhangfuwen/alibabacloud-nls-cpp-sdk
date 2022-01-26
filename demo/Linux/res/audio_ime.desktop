@@ -1,7 +1,7 @@
 [Desktop Entry]
 Categories=AudioVideo;
 Comment=Audio Input Method
-Exec=/usr/bin/audio_ime %u
+Exec=/usr/bin/audio_ime_setup %u
 GenericName=audio_ime
 Icon=audio_ime
 Keywords=audio_ime;

@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
         }
         g_object_unref(g_bus);
     });
-    win1->set_title("asdfdad");
+    win1->set_title("audio_ime configuration");
 
     // return app->run(*win1, argc, argv);
     return app->run(*win1, argc, argv);
