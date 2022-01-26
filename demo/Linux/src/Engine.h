@@ -72,14 +72,12 @@ class Engine : public ::SpeechListener {
     // return value
     std::pair<bool, bool> ProcessSpeech(guint keyval, guint keycode, guint state);
     gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);
-    static gboolean OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state);
-    static void OnEnable([[maybe_unused]] IBusEngine *engine);
-    static void OnDisable([[maybe_unused]] IBusEngine *engine);
-    static void OnFocusOut(IBusEngine *engine);
-    static void OnFocusIn([[maybe_unused]] IBusEngine *engine);
-    static void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state);
-    static std::map<std::string, Engine *> s_engineMap;
-    static Engine * IBusEngineToInputMethod(IBusEngine * engine);
+    static gboolean OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state, void *userdata);
+    static void OnEnable([[maybe_unused]] IBusEngine *engine, gpointer userdata);
+    static void OnDisable([[maybe_unused]] IBusEngine *engine, gpointer userdata);
+    static void OnFocusOut(IBusEngine *engine, gpointer userdata);
+    static void OnFocusIn([[maybe_unused]] IBusEngine *engine, gpointer userdata);
+    static void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state, gpointer userdata);
     void FocusIn();
     static void OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data);
     void engine_reset(IBusEngine *engine, IBusLookupTable *table);

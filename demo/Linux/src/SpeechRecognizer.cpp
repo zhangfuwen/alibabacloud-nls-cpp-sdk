@@ -344,6 +344,7 @@ int SpeechRecognizer::RecognitionRecordAndRequest(ParamStruct *tst) {
             break;
         }
     } // while
+    m_waiting = true;
     recordingTime = 0;
 
     /*
@@ -375,6 +376,7 @@ int SpeechRecognizer::RecognitionRecordAndRequest(ParamStruct *tst) {
 }
 
 int SpeechRecognizer::RecognitionPrepareAndStartRecording() {
+    LOG_DEBUG("starting");
     int ret = AlibabaNls::NlsClient::getInstance()->setLogConfig("log-recognizer", AlibabaNls::LogDebug, 400,
                                                                  50); //"log-recognizer"
     if (-1 == ret) {
@@ -405,7 +407,7 @@ int SpeechRecognizer::RecognitionPrepareAndStartRecording() {
 
     memset(tst.url, 0, DEFAULT_STRING_LEN);
 
-    RecognitionRecordAndRequest(&tst);
+    ret = RecognitionRecordAndRequest(&tst);
     AlibabaNls::NlsClient::getInstance()->releaseInstance();
-    return 0;
+    return ret;
 }

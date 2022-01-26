@@ -32,26 +32,41 @@
 #include <utility>
 #include <vector>
 
+using namespace std::placeholders;
+
+Wubi * g_wubi = nullptr;
+pinyin::Pinyin * g_pinyin = nullptr;
+SpeechRecognizer * g_speechRecognizer = nullptr;
+
 Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
     gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
     m_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(bus));
     LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
     // Setup Lookup table
-    m_wubi = new Wubi(wubi86DictPath);
-    m_pinyin = new pinyin::Pinyin();
-    m_speechRecognizer = new SpeechRecognizer(*this);
-    s_engineMap[engine_name] = this;
+    if(!g_wubi) {
+        g_wubi = new Wubi(wubi86DictPath);
+    }
+    m_wubi = g_wubi;
 
-    registerCallbacks();
+    if(!g_pinyin) {
+        g_pinyin = new pinyin::Pinyin();
+    }
+    m_pinyin = g_pinyin;
+
+    if(!g_speechRecognizer) {
+        g_speechRecognizer = new SpeechRecognizer(*this);
+    }
+    m_speechRecognizer = g_speechRecognizer;
+
+    //registerCallbacks();
 }
 
-std::map<std::string, Engine *> Engine::s_engineMap = {};
-Engine *Engine::IBusEngineToInputMethod(IBusEngine *engine) { return s_engineMap[ibus_engine_get_name(engine)]; }
 
 IBusEngine *Engine::getIBusEngine() { return m_engine; }
 Engine::~Engine() {
-    delete m_pinyin;
-    delete m_wubi;
+//    delete m_pinyin;
+//    delete m_wubi;
+//    delete m_speechRecognizer;
 }
 void Engine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
@@ -67,13 +82,13 @@ void Engine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
 }
 void Engine::registerCallbacks() {
-    g_signal_connect(m_engine, "process-key-event", G_CALLBACK(OnProcessKeyEvent), nullptr);
-    g_signal_connect(m_engine, "enable", G_CALLBACK(OnEnable), nullptr);
-    g_signal_connect(m_engine, "disable", G_CALLBACK(OnDisable), nullptr);
-    g_signal_connect(m_engine, "focus-out", G_CALLBACK(OnFocusOut), nullptr);
-    g_signal_connect(m_engine, "focus-in", G_CALLBACK(OnFocusIn), nullptr);
-    g_signal_connect(m_engine, "candidate-clicked", G_CALLBACK(OnCandidateClicked), nullptr);
-    g_signal_connect(m_engine, "property-activate", G_CALLBACK(OnPropertyActivate), nullptr);
+    g_signal_connect(m_engine, "process-key-event", G_CALLBACK(OnProcessKeyEvent), this);
+    g_signal_connect(m_engine, "enable", G_CALLBACK(OnEnable), this);
+    g_signal_connect(m_engine, "disable", G_CALLBACK(OnDisable), this);
+    g_signal_connect(m_engine, "focus-out", G_CALLBACK(OnFocusOut), this);
+    g_signal_connect(m_engine, "focus-in", G_CALLBACK(OnFocusIn), this);
+    g_signal_connect(m_engine, "candidate-clicked", G_CALLBACK(OnCandidateClicked), this);
+    g_signal_connect(m_engine, "property-activate", G_CALLBACK(OnPropertyActivate), this);
 }
 void Engine::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
 void Engine::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
@@ -96,7 +111,9 @@ void Engine::IBusUpdateIndicator(long recordingTime) {
 std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint state) {
     SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
     if ((state & IBUS_CONTROL_MASK) && keycode == 41) {
+        LOG_DEBUG("status = %d", status);
         if (status == SpeechRecognizer::WAITING) {
+            LOG_DEBUG("waiting");
             return {true, TRUE};
         }
         if (status != SpeechRecognizer::RECODING) {
@@ -311,25 +328,26 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
 }
 
 // static
-gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state) {
-    IBusEngineToInputMethod(engine)->ProcessKeyEvent(keyval, keycode, state);
+gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state, void * userdata) {
+    Engine * myengine = (Engine*)userdata;
+    myengine->ProcessKeyEvent(keyval, keycode, state);
 }
 
 // static
-void Engine::OnEnable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Enable(); }
+void Engine::OnEnable([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine*)userdata)->Enable(); }
 
 // static
-void Engine::OnDisable([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->Disable(); }
+void Engine::OnDisable([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine*)userdata)->Disable(); }
 
 // static
-void Engine::OnFocusOut(IBusEngine *engine) {}
+void Engine::OnFocusOut(IBusEngine *engine, gpointer userdata) {}
 
 // static
-void Engine::OnFocusIn([[maybe_unused]] IBusEngine *engine) { IBusEngineToInputMethod(engine)->FocusIn(); }
+void Engine::OnFocusIn([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine*)userdata)->FocusIn(); }
 
 // static
-void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
-    IBusEngineToInputMethod(engine)->candidateSelected(index);
+void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state, gpointer userdata) {
+    ((Engine*)userdata)->candidateSelected(index);
 }
 
 void Engine::FocusIn() {
@@ -416,7 +434,7 @@ void Engine::PropertySetup() const {
 void Engine::OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
     LOG_TRACE("Entry");
     LOG_INFO("property changed, name:%s, state:%d", name, state);
-    auto ime = IBusEngineToInputMethod(engine);
+    auto ime = (Engine *)user_data;
     if (std::string(name) == "wubi_table_no") {
         if(state == 1) {
             ime->prop.wubi_table = "";

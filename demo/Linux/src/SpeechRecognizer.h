@@ -29,11 +29,13 @@ class SpeechRecognizer {
     explicit SpeechRecognizer(SpeechListener &listener) : m_speechListerner(listener) {}
     void Start() {
         m_recording = true;
-        RecognitionPrepareAndStartRecording();
+        auto ret = RecognitionPrepareAndStartRecording();
+        if(ret < 0) {
+            m_recording = false;
+        }
     }
     void Stop() {
         m_recording = false;
-        m_waiting = true;
     }
 
     Status GetStatus() const {

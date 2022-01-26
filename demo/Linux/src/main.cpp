@@ -127,13 +127,17 @@ void IBusConfigSetup(GDBusConnection *conn) {
 IBusEngine *IBusEngine_OnCreated(IBusFactory *factory, gchar *engine_name, gpointer user_data) {
     LOG_TRACE("Entry");
     id += 1;
+    if(g_engine) {
+        delete g_engine;
+    }
     g_engine = new Engine(engine_name, id, g_bus);
-    LOG_TRACE("Exit");
+    g_engine->registerCallbacks();
 
     auto conn = ibus_bus_get_connection(g_bus);
     LOG_DEBUG("ibus connection %p", conn);
     IBusConfigSetup(conn);
 
+    LOG_TRACE("Exit");
     return g_engine->getIBusEngine();
 }
 static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus, [[maybe_unused]] gpointer user_data) {
@@ -172,7 +176,9 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
 
     g_signal_connect(factory, "create-engine", G_CALLBACK(IBusEngine_OnCreated), nullptr);
 
+    LOG_DEBUG("xx");
     ibus_factory_add_engine(factory, "AudIme", IBUS_TYPE_ENGINE);
+    LOG_DEBUG("xx");
 
     IBusComponent *component;
 
