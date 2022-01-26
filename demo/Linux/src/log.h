@@ -16,6 +16,9 @@
 #define CONF_SECTION "engine/audio_ime"
 #define CONF_NAME_ID "access_id"  // no captal letter allowed
 #define CONF_NAME_SECRET "access_secret" // no captal letter allowed
+#define CONF_NAME_WUBI "wubi_table"
+#define CONF_NAME_PINYIN "pinyin_enable"
+#define CONF_NAME_SPEECH "pinyin_enable"
 
 constexpr auto filename(std::string_view path)
 {

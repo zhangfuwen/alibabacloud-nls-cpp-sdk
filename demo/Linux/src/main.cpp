@@ -56,74 +56,7 @@ void sigterm_cb(int sig) {
     exit(-1);
 }
 
-void IBusConfig_OnValueChanged(IBusConfig *config, gchar *section, gchar *name, GVariant *value, gpointer user_data) {
-    LOG_TRACE("Entry");
-    LOG_DEBUG("section:%s, name:%s", section, name);
-    if (string(name) == CONF_NAME_ID) {
-        auto nameVal = g_variant_get_string(value, nullptr);
-        if (nameVal == nullptr) {
-            LOG_ERROR("failed to get variant");
-            return;
-        }
-        g_engine->SetSpeechAkId(nameVal);
-        LOG_DEBUG("value:%s", nameVal);
-    } else if (string(name) == CONF_NAME_SECRET) {
-        auto nameVal = g_variant_get_string(value, nullptr);
-        if (nameVal == nullptr) {
-            LOG_ERROR("failed to get variant");
-            return;
-        }
-        g_engine->SetSpeechAkSecret(nameVal);
-        LOG_DEBUG("value:%s", nameVal);
-    }
-    LOG_TRACE("Exit");
-}
-void IBusConfigSetup(GDBusConnection *conn) {
-    g_config = ibus_config_new(conn, nullptr, nullptr);
-    if (!g_config) {
-            LOG_WARN("ibus config not accessible");
-    } else {
-        g_object_ref_sink(g_config);
-    }
-        LOG_DEBUG("ibus config %p", g_config);
 
-    string speechAkId;
-    string speechAkSecret;
-    auto akId = ibus_config_get_value(g_config, CONF_SECTION, CONF_NAME_ID);
-    if (akId != nullptr) {
-        auto nameVal = g_variant_get_string(akId, nullptr);
-        if (nameVal == nullptr) {
-                LOG_ERROR("failed to get variant");
-            speechAkId = "";
-        } else {
-            speechAkId = nameVal;
-                LOG_DEBUG("value:%s", nameVal);
-        }
-    } else {
-            LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
-    }
-    auto secret = ibus_config_get_value(g_config, CONF_SECTION, CONF_NAME_SECRET);
-    if (secret != nullptr) {
-        auto nameVal = g_variant_get_string(secret, nullptr);
-        if (nameVal == nullptr) {
-                LOG_ERROR("failed to get variant");
-            speechAkSecret = "";
-        } else {
-            speechAkSecret = nameVal;
-                LOG_DEBUG("value:%s", nameVal);
-        }
-    } else {
-            LOG_ERROR("failed to get config value for %s %s", CONF_SECTION, CONF_NAME_ID);
-    }
-    if(g_engine) {
-        g_engine->SetSpeechAkId(speechAkId);
-        g_engine->SetSpeechAkSecret(speechAkSecret);
-    }
-    ibus_config_watch(g_config, CONF_SECTION, CONF_NAME_ID);
-    ibus_config_watch(g_config, CONF_SECTION, CONF_NAME_SECRET);
-    g_signal_connect(g_config, "value-changed", G_CALLBACK(IBusConfig_OnValueChanged), nullptr);
-    LOG_INFO("config value-changed signal connected");
-}
 IBusEngine *IBusEngine_OnCreated(IBusFactory *factory, gchar *engine_name, gpointer user_data) {
     LOG_TRACE("Entry");
     id += 1;
@@ -135,7 +68,7 @@ IBusEngine *IBusEngine_OnCreated(IBusFactory *factory, gchar *engine_name, gpoin
 
     auto conn = ibus_bus_get_connection(g_bus);
     LOG_DEBUG("ibus connection %p", conn);
-    IBusConfigSetup(conn);
+    g_engine->IBusConfigSetup(conn);
 
     LOG_TRACE("Exit");
     return g_engine->getIBusEngine();
