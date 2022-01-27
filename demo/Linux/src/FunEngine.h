@@ -2,8 +2,8 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#ifndef AUDIO_IME_ENGINE_H
-#define AUDIO_IME_ENGINE_H
+#ifndef AUDIO_IME_FUNENGINE_H
+#define AUDIO_IME_FUNENGINE_H
 
 #include "PinyinIME.h"
 #include "SpeechRecognizer.h"
@@ -13,6 +13,7 @@
 #include "nlsToken.h"
 #include "speechRecognizerRequest.h"
 #include "wubi.h"
+#include "RuntimeOptions.h"
 #include <cctype>
 #include <csignal>
 #include <cstdlib>
@@ -62,44 +63,24 @@ public:
     void Clear();
 };
 
-class Engine : public ::SpeechListener {
+class FunEngine : public ::SpeechListener {
 private:
     const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
     const std::string wubi98DictPath = "/usr/share/ibus-table/data/wubi98.txt";
-    struct Property {
-        std::string wubi_table = "";
-        bool pinyin = true;
-        bool speech = true;
-    };
 
-    Property prop{};
     IBusEngine *m_engine = nullptr;
-    IBusConfig *m_config = nullptr;
     Wubi *m_wubi = nullptr;
     pinyin::Pinyin *m_pinyin = nullptr;
     SpeechRecognizer *m_speechRecognizer = nullptr;
     std::string m_input;
 
     LookupTable *m_lookupTable = nullptr;
+    RuntimeOptions * m_options = nullptr;
 
-    std::string ConfGetString(const std::string &name) const;
-    void ConfSetString(std::string name, std::string val);
 
     // early return ?
     // return value
     std::pair<bool, bool> ProcessSpeech(guint keyval, guint keycode, guint state);
-    gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);
-    static gboolean OnProcessKeyEvent(IBusEngine *engine, guint keyVal, guint keycode, guint state, void *userdata);
-    static void OnEnable([[maybe_unused]] IBusEngine *engine, gpointer userdata);
-    static void OnDisable([[maybe_unused]] IBusEngine *engine, gpointer userdata);
-    static void OnFocusOut(IBusEngine *engine, gpointer userdata);
-    static void OnFocusIn([[maybe_unused]] IBusEngine *engine, gpointer userdata);
-    static void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state, gpointer userdata);
-    static void
-    IBusConfig_OnValueChanged(IBusConfig *config, gchar *section, gchar *name, GVariant *value, gpointer user_data);
-    void FocusIn();
-    void FocusOut();
-    static void OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data);
     void engine_commit_text(IBusEngine *engine, IBusText *text);
     std::string IBusMakeIndicatorMsg(long recordingTime);
     void candidateSelected(guint index, bool ignoreText = false);
@@ -109,19 +90,20 @@ private:
     void WubiPinyinQuery();
 
 public:
-    explicit Engine(gchar *engine_name, int id, IBusBus *bus);
+    explicit FunEngine(IBusEngine * engine);
     IBusEngine *getIBusEngine();
-    ~Engine() override;
+    ~FunEngine() override;
     void OnCompleted(std::string text) override;
     void OnFailed() override;
     void OnPartialResult(std::string text) override;
-    void registerCallbacks();
-    void SetSpeechAkId(std::string akId);
-    void SetSpeechAkSecret(std::string akSecret);
     void Enable();
     void Disable();
+    void FocusIn();
+    void FocusOut();
     void IBusUpdateIndicator(long recordingTime) override;
-    void IBusConfigSetup(GDBusConnection *conn);
+    void OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state);
+    gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);
+    void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state);
 };
 
-#endif // AUDIO_IME_ENGINE_H
+#endif // AUDIO_IME_FUNENGINE_H

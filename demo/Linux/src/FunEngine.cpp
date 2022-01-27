@@ -17,9 +17,10 @@
 #include <vector>
 
 #include "common.h"
-#include "Engine.h"
+#include "FunEngine.h"
 #include "log.h"
 #include "wubi.h"
+#include "Config.h"
 
 using namespace std::placeholders;
 
@@ -27,11 +28,9 @@ Wubi *g_wubi = nullptr;
 pinyin::Pinyin *g_pinyin = nullptr;
 SpeechRecognizer *g_speechRecognizer = nullptr;
 
-Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
-    gchar *path = g_strdup_printf("/org/freedesktop/IBus/Engine/%i", id);
-    m_engine = ibus_engine_new(engine_name, path, ibus_bus_get_connection(bus));
-    g_free(path);
-    LOG_INFO("[IM:iBus]: Creating IM Engine with name:%s and id:%d", engine_name, id);
+FunEngine::FunEngine(IBusEngine * engine) {
+    m_options = RuntimeOptions::get();
+    m_engine = engine;
     // Setup Lookup table
     if (!g_wubi) {
         g_wubi = new Wubi(wubi86DictPath);
@@ -44,49 +43,38 @@ Engine::Engine(gchar *engine_name, int id, IBusBus *bus) {
     m_pinyin = g_pinyin;
 
     if (!g_speechRecognizer) {
-        g_speechRecognizer = new SpeechRecognizer(*this);
+        g_speechRecognizer = new SpeechRecognizer(*this, m_options);
     }
     m_speechRecognizer = g_speechRecognizer;
 }
 
-IBusEngine *Engine::getIBusEngine() { return m_engine; }
-Engine::~Engine() {
+IBusEngine *FunEngine::getIBusEngine() { return m_engine; }
+FunEngine::~FunEngine() {
     g_object_unref(m_engine);
     //    delete m_pinyin;
     //    delete m_wubi;
     //    delete m_speechRecognizer;
 }
-void Engine::OnCompleted(std::string text) {
+void FunEngine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
-void Engine::OnFailed() {
+void FunEngine::OnFailed() {
     engine_commit_text(m_engine, ibus_text_new_from_string(""));
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
-void Engine::OnPartialResult(std::string text) {
+void FunEngine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
 }
-void Engine::registerCallbacks() {
-    g_signal_connect(m_engine, "process-key-event", G_CALLBACK(OnProcessKeyEvent), this);
-    g_signal_connect(m_engine, "enable", G_CALLBACK(OnEnable), this);
-    g_signal_connect(m_engine, "disable", G_CALLBACK(OnDisable), this);
-    g_signal_connect(m_engine, "focus-out", G_CALLBACK(OnFocusOut), this);
-    g_signal_connect(m_engine, "focus-in", G_CALLBACK(OnFocusIn), this);
-    g_signal_connect(m_engine, "candidate-clicked", G_CALLBACK(OnCandidateClicked), this);
-    g_signal_connect(m_engine, "property-activate", G_CALLBACK(OnPropertyActivate), this);
-}
-void Engine::SetSpeechAkId(std::string akId) { m_speechRecognizer->setAkId(std::move(akId)); }
-void Engine::SetSpeechAkSecret(std::string akSecret) { m_speechRecognizer->setAkSecret(std::move(akSecret)); }
-void Engine::Enable() { }
-void Engine::Disable() { }
-void Engine::IBusUpdateIndicator(long recordingTime) {
+void FunEngine::Enable() { }
+void FunEngine::Disable() { }
+void FunEngine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
 }
 // early return ?
 // return value
-std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint state) {
+std::pair<bool, bool> FunEngine::ProcessSpeech(guint keyval, guint keycode, guint state) {
     SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
     if ((state & IBUS_CONTROL_MASK) && keyval == IBUS_KEY_grave) {
         LOG_DEBUG("status = %d", status);
@@ -116,7 +104,7 @@ std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint s
     }
     return {false, false};
 }
-gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
+gboolean FunEngine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
     if (state & IBUS_RELEASE_MASK) { // only respond to key down
         return FALSE;
     }
@@ -177,16 +165,16 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         return false;
     }
 }
-void Engine::WubiPinyinQuery() { // get pinyin candidates
+void FunEngine::WubiPinyinQuery() { // get pinyin candidates
     unsigned int nPinyinCandidates = 0;
-    if (prop.pinyin) {
+    if (m_options->pinyin) {
         nPinyinCandidates = m_pinyin->Search(m_input);
     }
     LOG_INFO("num candidates %u for %s", nPinyinCandidates, m_input.c_str());
 
     // get wubi candidates
     TrieNode *wubiSubtree = nullptr;
-    if (!prop.wubi_table.empty()) { // no searching , no data
+    if (!m_options->wubi_table.empty()) { // no searching , no data
         wubiSubtree = m_wubi->Search(m_input);
     }
     map<uint64_t, string> m;
@@ -234,7 +222,7 @@ void Engine::WubiPinyinQuery() { // get pinyin candidates
         }
     }
 }
-void Engine::ToggleToEnglishMode() { // commit input as english
+void FunEngine::ToggleToEnglishMode() { // commit input as english
     engine_commit_text(getIBusEngine(), ibus_text_new_from_string(m_input.c_str()));
     m_input = "";
     m_lookupTable->Clear();
@@ -243,7 +231,7 @@ void Engine::ToggleToEnglishMode() { // commit input as english
     ibus_engine_hide_preedit_text(m_engine);
     ibus_engine_hide_auxiliary_text(m_engine);
 }
-bool Engine::LookupTableNavigate(guint keyval) {
+bool FunEngine::LookupTableNavigate(guint keyval) {
     bool return1 = false;
     if (keyval == IBUS_KEY_equal || keyval == IBUS_KEY_Right) {
         LOG_DEBUG("equal pressed");
@@ -270,95 +258,30 @@ bool Engine::LookupTableNavigate(guint keyval) {
 }
 
 // static
-gboolean Engine::OnProcessKeyEvent(IBusEngine *engine, guint keyVal, guint keycode, guint state, void *userdata) {
-    auto *myengine = (Engine *)userdata;
-    myengine->ProcessKeyEvent(keyVal, keycode, state);
+void FunEngine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
+    candidateSelected(index);
 }
 
-// static
-void Engine::OnEnable([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->Enable(); }
-
-// static
-void Engine::OnDisable([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->Disable(); }
-
-// static
-void Engine::OnFocusOut(IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->FocusOut(); }
-
-// static
-void Engine::OnFocusIn([[maybe_unused]] IBusEngine *engine, gpointer userdata) { ((Engine *)userdata)->FocusIn(); }
-
-// static
-void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state, gpointer userdata) {
-    ((Engine *)userdata)->candidateSelected(index);
-}
-
-// static
-void Engine::IBusConfig_OnValueChanged(
-    IBusConfig *config,
-    gchar *section,
-    gchar *name,
-    GVariant *value,
-    gpointer user_data) {
-    LOG_TRACE("Entry");
-    Engine *engine = (Engine *)user_data;
-    LOG_DEBUG("section:%s, name:%s", section, name);
-
-    // to make thing easier, all watched configs are of string type
-    auto nameVal = g_variant_get_string(value, nullptr);
-    if (nameVal == nullptr) {
-        LOG_ERROR("failed to get variant");
-        return;
-    }
-
-    if (string(name) == CONF_NAME_ID) {
-        engine->SetSpeechAkId(nameVal);
-    } else if (string(name) == CONF_NAME_SECRET) {
-        engine->SetSpeechAkSecret(nameVal);
-    }
-    LOG_TRACE("Exit");
-}
-void Engine::IBusConfigSetup(GDBusConnection *conn) {
-    if (m_config) {
-        g_object_unref(m_config);
-    }
-    m_config = ibus_config_new(conn, nullptr, nullptr);
-    if (!m_config) {
-        LOG_WARN("ibus config not accessible");
-    } else {
-        g_object_ref_sink(m_config);
-    }
-    LOG_DEBUG("ibus config %p", m_config);
-
-    string speechAkId = ConfGetString(CONF_NAME_ID);
-    string speechAkSecret = ConfGetString(CONF_NAME_SECRET);
-    SetSpeechAkId(speechAkId);
-    SetSpeechAkSecret(speechAkSecret);
-    ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_ID);
-    ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_SECRET);
-    g_signal_connect(m_config, "value-changed", G_CALLBACK(IBusConfig_OnValueChanged), this);
-    LOG_INFO("config value-changed signal connected");
-}
-
-void Engine::FocusIn() {
+void FunEngine::FocusIn() {
     LOG_TRACE("Entry");
     PropertySetup();
     m_lookupTable = new LookupTable(this->getIBusEngine());
     LOG_TRACE("Exit");
 }
-void Engine::FocusOut() {
+void FunEngine::FocusOut() {
     LOG_TRACE("Entry");
     delete m_lookupTable;
     LOG_TRACE("Exit");
 }
-void Engine::PropertySetup() {
+void FunEngine::PropertySetup() {
     LOG_TRACE("Entry");
-    prop.wubi_table = ConfGetString(CONF_NAME_WUBI);
-    auto pinyin = ConfGetString(CONF_NAME_PINYIN);
+    RuntimeOptions::get()->wubi_table = Config::getInstance()->GetString(CONF_NAME_WUBI);
+    auto pinyin = Config::getInstance()->GetString(CONF_NAME_PINYIN);
     if (pinyin.empty()) { // not configured yet
         pinyin = "true";
-        ConfSetString(CONF_NAME_PINYIN, pinyin);
+        Config::getInstance()->SetString(CONF_NAME_PINYIN, pinyin);
     }
-    prop.pinyin = pinyin == "true";
+    RuntimeOptions::get()->pinyin = (pinyin == "true");
     auto prop_list = ibus_prop_list_new();
     auto prop_pinyin = ibus_property_new(
         "pinyin",
@@ -368,7 +291,7 @@ void Engine::PropertySetup() {
         ibus_text_new_from_string("tooltip_pinyin"),
         true,
         true,
-        prop.pinyin ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        m_options->pinyin ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
         nullptr);
     auto prop_speech = ibus_property_new(
         "preference",
@@ -390,7 +313,7 @@ void Engine::PropertySetup() {
         ibus_text_new_from_string("tooltip_wubi_table_no"),
         true,
         true,
-        prop.wubi_table.empty() ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        m_options->wubi_table.empty() ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
         nullptr);
     auto prop_wubi_table_86 = ibus_property_new(
         "wubi_table_86",
@@ -400,7 +323,7 @@ void Engine::PropertySetup() {
         ibus_text_new_from_string("tooltip_wubi_table_86"),
         true,
         true,
-        prop.wubi_table == wubi86DictPath ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        m_options->wubi_table == wubi86DictPath ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
         nullptr);
     auto prop_wubi_table_98 = ibus_property_new(
         "wubi_table_98",
@@ -410,7 +333,7 @@ void Engine::PropertySetup() {
         ibus_text_new_from_string("tooltip_wubi_table_98"),
         true,
         true,
-        prop.wubi_table == wubi98DictPath ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        m_options->wubi_table == wubi98DictPath ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
         nullptr);
     ibus_prop_list_append(wubi_prop_sub_list, prop_wubi_table_no);
     ibus_prop_list_append(wubi_prop_sub_list, prop_wubi_table_86);
@@ -435,46 +358,45 @@ void Engine::PropertySetup() {
 }
 
 // static
-void Engine::OnPropertyActivate(IBusEngine *engine, gchar *name, guint state, gpointer user_data) {
+void FunEngine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state) {
     LOG_TRACE("Entry");
     LOG_INFO("property changed, name:%s, state:%d", name, state);
-    auto ime = (Engine *)user_data;
-    auto oldProp = ime->prop;
+    auto oldOptions = *m_options;
     if (std::string(name) == "wubi_table_no") {
         if (state == 1) {
-            ime->prop.wubi_table = "";
+            m_options->wubi_table = "";
         }
     } else if (std::string(name) == "wubi_table_86") {
         if (state == 1) {
-            ime->prop.wubi_table = ime->wubi86DictPath;
+            m_options->wubi_table = wubi86DictPath;
         }
     } else if (std::string(name) == "wubi_table_98") {
         if (state == 1) {
-            ime->prop.wubi_table = ime->wubi98DictPath;
+            m_options->wubi_table = wubi98DictPath;
         }
     } else if (std::string(name) == "pinyin_table") {
-        ime->prop.pinyin = state;
+        m_options->pinyin = state;
     }
-    if (ime->prop.wubi_table != oldProp.wubi_table) {
-        ime->ConfSetString(CONF_NAME_WUBI, ime->prop.wubi_table);
+    if (m_options->wubi_table != oldOptions.wubi_table) {
+        Config::getInstance()->SetString(CONF_NAME_WUBI, m_options->wubi_table);
     }
 
-    if (ime->prop.pinyin != oldProp.pinyin) {
-        ime->ConfSetString(CONF_NAME_PINYIN, ime->prop.pinyin ? "true" : "false");
+    if (m_options->pinyin != oldOptions.pinyin) {
+        Config::getInstance()->SetString(CONF_NAME_PINYIN, m_options->pinyin ? "true" : "false");
     }
     if (std::string(name) == "preference") {
         g_spawn_command_line_async("audio_ime_setup", nullptr);
     }
     LOG_TRACE("Exit");
 }
-void Engine::engine_commit_text(IBusEngine *engine, IBusText *text) {
+void FunEngine::engine_commit_text(IBusEngine *engine, IBusText *text) {
     ibus_engine_commit_text(engine, text);
     ibus_engine_hide_preedit_text(engine);
     ibus_engine_hide_auxiliary_text(engine);
     m_lookupTable->Clear();
     m_lookupTable->Hide();
 }
-std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
+std::string FunEngine::IBusMakeIndicatorMsg(long recordingTime) {
     std::string msg = "press C-` to toggle record[";
     SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
     if (status == SpeechRecognizer::RECODING) {
@@ -486,7 +408,7 @@ std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
     msg += "]";
     return msg;
 }
-void Engine::candidateSelected(guint index, bool ignoreText) {
+void FunEngine::candidateSelected(guint index, bool ignoreText) {
     auto cand = m_lookupTable->GetCandidateGlobal(index);
 
     if (cand.isPinyin) {
@@ -511,32 +433,6 @@ void Engine::candidateSelected(guint index, bool ignoreText) {
     ibus_engine_hide_preedit_text(m_engine);
     m_input.clear();
 }
-std::string Engine::ConfGetString(const std::string &name) const {
-    std::string val;
-    auto akId = ibus_config_get_value(m_config, CONF_SECTION, name.c_str());
-    if (akId != nullptr) {
-        auto nameVal = g_variant_get_string(akId, nullptr);
-        if (nameVal == nullptr) {
-            LOG_ERROR("failed to get variant");
-            val = "";
-        } else {
-            val = nameVal;
-            LOG_DEBUG("value:%s", nameVal);
-        }
-    } else {
-        LOG_ERROR("failed to get config value for %s", name.c_str());
-        val = "";
-    }
-    return val;
-}
-
-void Engine::ConfSetString(std::string name, std::string val) {
-    auto ret = ibus_config_set_value(m_config, CONF_SECTION, name.c_str(), g_variant_new_string(val.c_str()));
-    if (!ret) {
-        LOG_ERROR("failed to set config %s", name.c_str());
-    }
-}
-
 LookupTable::LookupTable(IBusEngine *engine) {
     m_engine = engine;
     m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);

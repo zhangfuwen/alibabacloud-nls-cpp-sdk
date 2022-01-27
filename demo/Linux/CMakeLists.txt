@@ -67,18 +67,21 @@ add_executable(wubitest examples/wubitest.cpp)
 add_executable(pinyintest examples/pinyintest.cpp)
 target_link_libraries(pinyintest pinyin ${GLib2_LIBRARIES})
 
-add_executable(audio_ime
-        src/Engine.cpp
+add_executable(ibus-fun
+        src/FunEngine.cpp
+        src/Config.cpp
+        src/RuntimeOptions.cpp
+        src/engine.cpp
         src/PinyinIME.cpp
         src/wubi.cpp
         src/main.cpp
         src/SpeechRecognizer.cpp)
-target_link_libraries(audio_ime
+target_link_libraries(ibus-fun
     alibabacloud-idst-speech.a
     pthread z dl psl brotlidec pulse pulse-simple
     ${IBus_LIBRARIES} ${GLib2_LIBRARIES}
         pinyin)
-target_compile_definitions(audio_ime PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
+target_compile_definitions(ibus-fun PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
 
 pkg_check_modules(GTKMM3 REQUIRED gtkmm-3.0)
 add_executable(audio_ime_setup src/ime_setup.cpp)
@@ -90,20 +93,20 @@ target_link_libraries(audio_ime_setup ${GTKMM3_LIBRARIES}
 
 SET(CPACK_GENERATOR "DEB")
 SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Dean") #required
-set(CPACK_PACKAGE_NAME "audio_ime") # debian package name
+set(CPACK_PACKAGE_NAME "ibus-fun") # debian package name
 set(CPACK_PACKAGE_VERSION "1.1")
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA, "scripts/prerm;scripts/postrm;scripts/preinst;scripts/postinst")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpsl-dev, libpulse-dev, libbrotli-dev, ibus")
 
-INSTALL(FILES res/audio_ime.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
-INSTALL(FILES res/audio_ime.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
-INSTALL(TARGETS audio_ime DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES res/ibus-fun.desktop DESTINATION share/applications PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES res/ibus-fun.xml DESTINATION /usr/share/ibus/component PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(TARGETS ibus-fun DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(TARGETS audio_ime_setup DESTINATION /usr/bin/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(FILES res/ime_setup.glade DESTINATION /usr/share/ibus/ibus-audio/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES res/dict_pinyin.dat DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES res/wubi86.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
 INSTALL(FILES res/wubi98.txt DESTINATION /usr/share/ibus-table/data PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ )
-INSTALL(FILES res/audio_ime.png DESTINATION /usr/share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+INSTALL(FILES res/ibus-fun.png DESTINATION /usr/share/icons/hicolor/scalable/apps/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 INSTALL(FILES language/zh_CN/LC_MESSAGES/messages.mo DESTINATION /usr/share/ibus/ibus-audio/data/language/zh_CN/LC_MESSAGES/ PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ)
 
 INCLUDE(CPack)

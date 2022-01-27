@@ -5,38 +5,39 @@
 #ifndef AUDIO_IME_SPEECHRECOGNIZER_H
 #define AUDIO_IME_SPEECHRECOGNIZER_H
 
+#include "RuntimeOptions.h"
 #include <csignal>
-#include <thread>
-#include <string>
 #include <ibus.h>
 #include <nlsEvent.h>
+#include <string>
+#include <thread>
 
 #define BUFSIZE 1024
 #define SAMPLE_RATE 16000
 #define DEFAULT_STRING_LEN 128
 
 class SpeechListener {
-  public:
+public:
     virtual void OnCompleted(std::string text) = 0;
     virtual void OnFailed() = 0;
     virtual void OnPartialResult(std::string text) = 0;
     virtual void IBusUpdateIndicator(long) = 0;
-    virtual ~SpeechListener() = default;;
+    virtual ~SpeechListener() = default;
+    ;
 };
 class SpeechRecognizer {
-  public:
+public:
     enum Status { IDLE, RECODING, WAITING };
-    explicit SpeechRecognizer(SpeechListener &listener) : m_speechListerner(listener) {}
+    explicit SpeechRecognizer(SpeechListener &listener, SpeechRecognizerOptions *opts)
+        : m_speechListerner(listener), m_opts(opts) {}
     void Start() {
         m_recording = true;
         auto ret = RecognitionPrepareAndStartRecording();
-        if(ret < 0) {
+        if (ret < 0) {
             m_recording = false;
         }
     }
-    void Stop() {
-        m_recording = false;
-    }
+    void Stop() { m_recording = false; }
 
     Status GetStatus() const {
         if (m_recording) {
@@ -48,10 +49,7 @@ class SpeechRecognizer {
         return IDLE;
     }
 
-    void setAkId(std::string akId) { g_akId = move(akId); }
-    void setAkSecret(std::string akSecret) { g_akSecret = move(akSecret); }
-
-  private:
+private:
 #define BUFSIZE 1024
 #define FRAME_100MS 3200
 #define SAMPLE_RATE 16000
@@ -62,11 +60,9 @@ class SpeechRecognizer {
     SpeechListener &m_speechListerner;
     int frame_size = FRAME_100MS;
     int encoder_type = ENCODER_NONE;
-    std::string g_akId;
-    std::string g_akSecret;
     std::string g_token;
     long g_expireTime = 0;
-
+    SpeechRecognizerOptions *m_opts = nullptr;
 
     /**
      * 全局维护一个服务鉴权token和其对应的有效期时间戳，
@@ -87,7 +83,7 @@ class SpeechRecognizer {
 
     // 自定义事件回调参数
     struct ParamCallBack {
-      public:
+    public:
         explicit ParamCallBack(ParamStruct *param) {
             tParam = param;
             pthread_mutex_init(&mtxWord, nullptr);

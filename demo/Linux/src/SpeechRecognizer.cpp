@@ -390,7 +390,7 @@ int SpeechRecognizer::RecognitionPrepareAndStartRecording() {
     time_t curTime = time(nullptr);
     if (g_expireTime == 0 || g_expireTime - curTime < 10) {
         LOG_DEBUG("generating new token %lu %lu", g_expireTime, curTime);
-        if (-1 == NetGenerateToken(g_akId, g_akSecret, &g_token, &g_expireTime)) {
+        if (-1 == NetGenerateToken(m_opts->speechAkId, m_opts->speechSecret, &g_token, &g_expireTime)) {
             LOG_ERROR("failed to gen token");
             return -1;
         }
