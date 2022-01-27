@@ -49,8 +49,6 @@ static_assert(filename("file.cpp") == "file.cpp");
         auto pid = getpid();                                                   \
         syslog(LOG_DAEMON | LOG_INFO, "%s %d %d info %s:%d %s > " fmt "\n", buff, pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
-        g_error("%s %d %d %s:%d %s > " fmt, buff, pid, tid, filename(__FILE__).data(),          \
-           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
 
 #define FUN_DEBUG(fmt, ...)                                                     \

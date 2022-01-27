@@ -5,7 +5,7 @@
 #include "Config.h"
 
 Config * Config::instance = nullptr;
-std::string Config::GetString(const std::string &name) const {
+std::string Config::GetString(const std::string &name) {
     std::string val;
     auto akId = ibus_config_get_value(m_config, CONF_SECTION, name.c_str());
     if (akId != nullptr) {
@@ -20,6 +20,7 @@ std::string Config::GetString(const std::string &name) const {
     } else {
         FUN_ERROR("failed to get config value for %s", name.c_str());
         val = "";
+        SetString(name, "");
     }
     return val;
 }

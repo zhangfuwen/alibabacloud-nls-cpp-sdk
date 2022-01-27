@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <component>
     <name>org.freedesktop.IBus.Fun</name>
-    <description>Audio Input method</description>
-    <exec>/usr/bin/audio_ime --ibus</exec>
+    <description>Fun Input method</description>
+    <exec>/usr/bin/ibus-fun --ibus</exec>
     <version>1.0</version>
     <author>zhangfuwen</author>
     <license>MIT</license>
     <homepage>xx</homepage>
-    <textdomain>audio_ime</textdomain>
+    <textdomain>ibus-fun</textdomain>
 
     <engines>
         <engine>
@@ -20,7 +20,7 @@
             <longname>Fun Input method</longname>
             <description>Fun Input method</description>
             <rank>0</rank>
-            <setup>audio_ime_setup</setup>
+            <setup>fun-setup</setup>
             <custom>xxx</custom>
         </engine>
     </engines>

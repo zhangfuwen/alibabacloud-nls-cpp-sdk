@@ -34,7 +34,7 @@ public:
     ~Config() {
         g_object_unref(m_config);
     }
-    [[nodiscard]] std::string GetString(const std::string &name) const;
+    [[nodiscard]] std::string GetString(const std::string &name);
     void SetString(const std::string& name, const std::string& val);
 public:
 private:
