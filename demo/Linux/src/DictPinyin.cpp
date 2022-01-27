@@ -3,12 +3,12 @@
 //
 
 #include <functional>
-#include "FunEngine.h"
+#include "Engine.h"
 #include "speechRecognizerRequest.h"
 #include "nlsToken.h"
 #include "nlsEvent.h"
 #include "nlsClient.h"
-#include "log.h"
+#include "common_log.h"
 #include <vector>
 #include <utility>
 #include <unordered_map>
@@ -30,16 +30,16 @@
 #include <cstdlib>
 #include <csignal>
 #include <cctype>
-#include "PinyinIME.h"
+#include "DictPinyin.h"
 volatile bool g_pinyin_table = true;
-pinyin::PinyinIME::PinyinIME() {
+pinyin::DictPinyin::DictPinyin() {
     bool ret = ime_pinyin::im_open_decoder("/usr/share/ibus-table/data/dict_pinyin.dat", "/home/zhangfuwen/pinyin.dat");
 }
-unsigned int pinyin::PinyinIME::Search(const basic_string<char> &input) {
+unsigned int pinyin::DictPinyin::Search(const basic_string<char> &input) {
     auto numCandidates = ime_pinyin::im_search(input.c_str(), input.size());
     return numCandidates;
 }
-basic_string<wchar_t> pinyin::PinyinIME::GetCandidate(int index) {
+basic_string<wchar_t> pinyin::DictPinyin::GetCandidate(int index) {
     unsigned short buffer[240];
     auto ret = ime_pinyin::im_get_candidate(index, buffer, 240);
     if (ret == nullptr) {
@@ -48,6 +48,6 @@ basic_string<wchar_t> pinyin::PinyinIME::GetCandidate(int index) {
 
     return {(wchar_t *)buffer, 240};
 }
-pinyin::PinyinIME::~PinyinIME() {
+pinyin::DictPinyin::~DictPinyin() {
     ime_pinyin::im_close_decoder();
 }

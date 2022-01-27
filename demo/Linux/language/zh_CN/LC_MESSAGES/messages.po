@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-01-26 19:50+0800\n"
+"POT-Creation-Date: 2022-01-27 21:50+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,26 +17,26 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/FunEngine.cpp:359
+#: src/Engine.cpp:286
 msgid "label_pinyin"
 msgstr "使用拼音词库"
 
-#: src/FunEngine.cpp:369
+#: src/Engine.cpp:296
 msgid "preference"
 msgstr "首选项"
 
-#: src/FunEngine.cpp:381
+#: src/Engine.cpp:308
 msgid "label_wubi_table_no"
 msgstr "不使用五笔词库"
 
-#: src/FunEngine.cpp:391
+#: src/Engine.cpp:318
 msgid "label_wubi_table_86"
 msgstr "使用五笔86词库"
 
-#: src/FunEngine.cpp:401
+#: src/Engine.cpp:328
 msgid "label_wubi_table_98"
 msgstr "使用五笔98词库"
 
-#: src/FunEngine.cpp:415
+#: src/Engine.cpp:342
 msgid "wubi"
 msgstr "五笔词库"

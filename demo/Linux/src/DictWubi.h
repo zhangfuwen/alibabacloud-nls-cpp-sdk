@@ -2,8 +2,8 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#ifndef AUDIO_IME_WUBI_H
-#define AUDIO_IME_WUBI_H
+#ifndef AUDIO_IME_DICTWUBI_H
+#define AUDIO_IME_DICTWUBI_H
 #include <string>
 #include <map>
 #include <vector>
@@ -44,4 +44,4 @@ void TrieTraverse(struct TrieNode *root, void (*fn)(struct TrieNode *node));
 TrieNode *TrieSearch(struct TrieNode *root, const std::string &key);
 void SubTreeTraversal(std::map<uint64_t, std::string> &m, struct TrieNode *root);
 
-#endif // AUDIO_IME_WUBI_H
+#endif // AUDIO_IME_DICTWUBI_H

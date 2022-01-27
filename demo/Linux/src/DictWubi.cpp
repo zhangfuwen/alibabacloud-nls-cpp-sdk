@@ -2,7 +2,7 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#include "wubi.h"
+#include "DictWubi.h"
 #include <fstream>
 #include <functional>
 #include <iostream>

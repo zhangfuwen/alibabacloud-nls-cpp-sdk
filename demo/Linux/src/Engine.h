@@ -2,17 +2,17 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#ifndef AUDIO_IME_FUNENGINE_H
-#define AUDIO_IME_FUNENGINE_H
+#ifndef AUDIO_IME_ENGINE_H
+#define AUDIO_IME_ENGINE_H
 
-#include "PinyinIME.h"
-#include "SpeechRecognizer.h"
-#include "log.h"
+#include "DictPinyin.h"
+#include "DictSpeech.h"
+#include "common_log.h"
 #include "nlsClient.h"
 #include "nlsEvent.h"
 #include "nlsToken.h"
 #include "speechRecognizerRequest.h"
-#include "wubi.h"
+#include "DictWubi.h"
 #include "RuntimeOptions.h"
 #include <cctype>
 #include <csignal>
@@ -63,15 +63,15 @@ public:
     void Clear();
 };
 
-class FunEngine : public ::SpeechListener {
+class Engine : public ::SpeechListener {
 private:
     const std::string wubi86DictPath = "/usr/share/ibus-table/data/wubi86.txt";
     const std::string wubi98DictPath = "/usr/share/ibus-table/data/wubi98.txt";
 
     IBusEngine *m_engine = nullptr;
     Wubi *m_wubi = nullptr;
-    pinyin::Pinyin *m_pinyin = nullptr;
-    SpeechRecognizer *m_speechRecognizer = nullptr;
+    pinyin::DictPinyin *m_pinyin = nullptr;
+    DictSpeech *m_speechRecognizer = nullptr;
     std::string m_input;
 
     LookupTable *m_lookupTable = nullptr;
@@ -90,9 +90,9 @@ private:
     void WubiPinyinQuery();
 
 public:
-    explicit FunEngine(IBusEngine * engine);
+    explicit Engine(IBusEngine * engine);
     IBusEngine *getIBusEngine();
-    ~FunEngine() override;
+    ~Engine() override;
     void OnCompleted(std::string text) override;
     void OnFailed() override;
     void OnPartialResult(std::string text) override;
@@ -104,11 +104,11 @@ public:
     void PageDown() { m_lookupTable->PageDown();}
     void CursorUp() { m_lookupTable->CursorUp();}
     void CursorDown() { m_lookupTable->CursorDown();}
-    void Reset() { LOG_TRACE(""); }
+    void Reset() { FUN_TRACE(""); }
     void IBusUpdateIndicator(long recordingTime) override;
     void OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state);
     gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);
     void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state);
 };
 
-#endif // AUDIO_IME_FUNENGINE_H
+#endif // AUDIO_IME_ENGINE_H

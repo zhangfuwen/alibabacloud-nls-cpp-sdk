@@ -2,8 +2,8 @@
 // Created by zhangfuwen on 2022/1/22.
 //
 
-#ifndef AUDIO_IME_SPEECHRECOGNIZER_H
-#define AUDIO_IME_SPEECHRECOGNIZER_H
+#ifndef AUDIO_IME_DICTSPEECH_H
+#define AUDIO_IME_DICTSPEECH_H
 
 #include "RuntimeOptions.h"
 #include <csignal>
@@ -25,10 +25,10 @@ public:
     virtual ~SpeechListener() = default;
     ;
 };
-class SpeechRecognizer {
+class DictSpeech {
 public:
     enum Status { IDLE, RECODING, WAITING };
-    explicit SpeechRecognizer(SpeechListener &listener, SpeechRecognizerOptions *opts)
+    explicit DictSpeech(SpeechListener &listener, SpeechRecognizerOptions *opts)
         : m_speechListerner(listener), m_opts(opts) {}
     void Start() {
         m_recording = true;
@@ -113,4 +113,4 @@ private:
     void OnRecognitionChannelClosed(AlibabaNls::NlsEvent *cbEvent, void *cbParam);
     int RecognitionRecordAndRequest(ParamStruct *tst);
 };
-#endif // AUDIO_IME_SPEECHRECOGNIZER_H
+#endif // AUDIO_IME_DICTSPEECH_H

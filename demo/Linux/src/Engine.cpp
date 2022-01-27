@@ -17,18 +17,18 @@
 #include <vector>
 
 #include "common.h"
-#include "FunEngine.h"
-#include "log.h"
-#include "wubi.h"
+#include "Engine.h"
+#include "common_log.h"
+#include "DictWubi.h"
 #include "Config.h"
 
 using namespace std::placeholders;
 
 Wubi *g_wubi = nullptr;
-pinyin::Pinyin *g_pinyin = nullptr;
-SpeechRecognizer *g_speechRecognizer = nullptr;
+pinyin::DictPinyin *g_pinyin = nullptr;
+DictSpeech *g_speechRecognizer = nullptr;
 
-FunEngine::FunEngine(IBusEngine * engine) {
+Engine::Engine(IBusEngine * engine) {
     m_options = RuntimeOptions::get();
     m_engine = engine;
     // Setup Lookup table
@@ -38,50 +38,50 @@ FunEngine::FunEngine(IBusEngine * engine) {
     m_wubi = g_wubi;
 
     if (!g_pinyin) {
-        g_pinyin = new pinyin::Pinyin();
+        g_pinyin = new pinyin::DictPinyin();
     }
     m_pinyin = g_pinyin;
 
     if (!g_speechRecognizer) {
-        g_speechRecognizer = new SpeechRecognizer(*this, m_options);
+        g_speechRecognizer = new DictSpeech(*this, m_options);
     }
     m_speechRecognizer = g_speechRecognizer;
     m_lookupTable = new LookupTable(engine);
 }
 
-IBusEngine *FunEngine::getIBusEngine() { return m_engine; }
-FunEngine::~FunEngine() {
+IBusEngine *Engine::getIBusEngine() { return m_engine; }
+Engine::~Engine() {
     delete m_lookupTable;
     g_object_unref(m_engine);
 }
-void FunEngine::OnCompleted(std::string text) {
+void Engine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
-void FunEngine::OnFailed() {
+void Engine::OnFailed() {
     engine_commit_text(m_engine, ibus_text_new_from_string(""));
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
 }
-void FunEngine::OnPartialResult(std::string text) {
+void Engine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
 }
-void FunEngine::Enable() { }
-void FunEngine::Disable() { }
-void FunEngine::IBusUpdateIndicator(long recordingTime) {
+void Engine::Enable() { }
+void Engine::Disable() { }
+void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
 }
 // early return ?
 // return value
-std::pair<bool, bool> FunEngine::ProcessSpeech(guint keyval, guint keycode, guint state) {
-    SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
+std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint state) {
+    DictSpeech::Status status = m_speechRecognizer->GetStatus();
     if ((state & IBUS_CONTROL_MASK) && keyval == IBUS_KEY_grave) {
-        LOG_DEBUG("status = %d", status);
-        if (status == SpeechRecognizer::WAITING) {
-            LOG_DEBUG("waiting");
+        FUN_DEBUG("status = %d", status);
+        if (status == DictSpeech::WAITING) {
+            FUN_DEBUG("waiting");
             return {true, TRUE};
         }
-        if (status != SpeechRecognizer::RECODING) {
+        if (status != DictSpeech::RECODING) {
             std::thread t1([&]() { m_speechRecognizer->Start(); });
             t1.detach();
         } else {
@@ -97,18 +97,18 @@ std::pair<bool, bool> FunEngine::ProcessSpeech(guint keyval, guint keycode, guin
     }
 
     // other key inputs
-    if (status != SpeechRecognizer::IDLE) {
+    if (status != DictSpeech::IDLE) {
         // don't respond to other key inputs when m_recording or m_waiting
         return {true, true};
     }
     return {false, false};
 }
-gboolean FunEngine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
+gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
     if (state & IBUS_RELEASE_MASK) { // only respond to key down
         return FALSE;
     }
 
-    LOG_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
+    FUN_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
 
     if (m_speechRecognizer != nullptr) {
         auto ret = ProcessSpeech(keyval, keycode, state);
@@ -119,7 +119,7 @@ gboolean FunEngine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
 
     if (state & IBUS_LOCK_MASK) {           // previously chinese mode
         if (keyval == IBUS_KEY_Caps_Lock) { // chinese to english mode
-            LOG_INFO("caps lock pressed");
+            FUN_INFO("caps lock pressed");
             ToggleToEnglishMode();
             return true;
         }
@@ -138,7 +138,7 @@ gboolean FunEngine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
             return true;
         }
 
-        LOG_DEBUG("keyval %x, m_input.size:%lu", keyval, m_input.size());
+        FUN_DEBUG("keyval %x, m_input.size:%lu", keyval, m_input.size());
         if (keyval == IBUS_KEY_BackSpace && !m_input.empty()) { // delete
             m_input = m_input.substr(0, m_input.size() - 1);
         } else if (isalpha((char)keyval)) { // append new
@@ -164,12 +164,12 @@ gboolean FunEngine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         return false;
     }
 }
-void FunEngine::WubiPinyinQuery() { // get pinyin candidates
+void Engine::WubiPinyinQuery() { // get pinyin candidates
     unsigned int nPinyinCandidates = 0;
     if (m_options->pinyin) {
         nPinyinCandidates = m_pinyin->Search(m_input);
     }
-    LOG_INFO("num candidates %u for %s", nPinyinCandidates, m_input.c_str());
+    FUN_INFO("num candidates %u for %s", nPinyinCandidates, m_input.c_str());
 
     // get wubi candidates
     TrieNode *wubiSubtree = nullptr;
@@ -195,7 +195,7 @@ void FunEngine::WubiPinyinQuery() { // get pinyin candidates
 
     // wubi and pinyin candidate one after another
     int j = 0;
-    LOG_INFO("map size:%lu", m.size());
+    FUN_INFO("map size:%lu", m.size());
     auto it = m.rbegin();
     while (true) {
         if (j >= nPinyinCandidates && it == m.rend()) {
@@ -221,7 +221,7 @@ void FunEngine::WubiPinyinQuery() { // get pinyin candidates
         }
     }
 }
-void FunEngine::ToggleToEnglishMode() { // commit input as english
+void Engine::ToggleToEnglishMode() { // commit input as english
     engine_commit_text(getIBusEngine(), ibus_text_new_from_string(m_input.c_str()));
     m_input = "";
     m_lookupTable->Clear();
@@ -230,25 +230,25 @@ void FunEngine::ToggleToEnglishMode() { // commit input as english
     ibus_engine_hide_preedit_text(m_engine);
     ibus_engine_hide_auxiliary_text(m_engine);
 }
-bool FunEngine::LookupTableNavigate(guint keyval) {
+bool Engine::LookupTableNavigate(guint keyval) {
     bool return1 = false;
     if (keyval == IBUS_KEY_equal || keyval == IBUS_KEY_Right) {
-        LOG_DEBUG("equal pressed");
+        FUN_DEBUG("equal pressed");
         m_lookupTable->PageDown();
         m_lookupTable->Update();
         return1 = true;
     } else if (keyval == IBUS_KEY_minus || keyval == IBUS_KEY_Left) {
-        LOG_DEBUG("minus pressed");
+        FUN_DEBUG("minus pressed");
         m_lookupTable->PageUp();
         m_lookupTable->Update();
         return1 = true;
     } else if (keyval == IBUS_KEY_Down) {
-        LOG_DEBUG("down pressed");
+        FUN_DEBUG("down pressed");
         m_lookupTable->CursorDown();
         m_lookupTable->Update();
         return1 = true;
     } else if (keyval == IBUS_KEY_Up) {
-        LOG_DEBUG("up pressed");
+        FUN_DEBUG("up pressed");
         m_lookupTable->CursorUp();
         m_lookupTable->Update();
         return1 = true;
@@ -257,21 +257,21 @@ bool FunEngine::LookupTableNavigate(guint keyval) {
 }
 
 // static
-void FunEngine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
+void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state) {
     candidateSelected(index);
 }
 
-void FunEngine::FocusIn() {
-    LOG_TRACE("Entry");
+void Engine::FocusIn() {
+    FUN_TRACE("Entry");
     PropertySetup();
-    LOG_TRACE("Exit");
+    FUN_TRACE("Exit");
 }
-void FunEngine::FocusOut() {
-    LOG_TRACE("Entry");
-    LOG_TRACE("Exit");
+void Engine::FocusOut() {
+    FUN_TRACE("Entry");
+    FUN_TRACE("Exit");
 }
-void FunEngine::PropertySetup() {
-    LOG_TRACE("Entry");
+void Engine::PropertySetup() {
+    FUN_TRACE("Entry");
     RuntimeOptions::get()->wubi_table = Config::getInstance()->GetString(CONF_NAME_WUBI);
     auto pinyin = Config::getInstance()->GetString(CONF_NAME_PINYIN);
     if (pinyin.empty()) { // not configured yet
@@ -351,13 +351,13 @@ void FunEngine::PropertySetup() {
     ibus_prop_list_append(prop_list, prop_pinyin);
     ibus_prop_list_append(prop_list, prop_speech);
     ibus_engine_register_properties(m_engine, prop_list);
-    LOG_TRACE("Exit");
+    FUN_TRACE("Exit");
 }
 
 // static
-void FunEngine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state) {
-    LOG_TRACE("Entry");
-    LOG_INFO("property changed, name:%s, state:%d", name, state);
+void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state) {
+    FUN_TRACE("Entry");
+    FUN_INFO("property changed, name:%s, state:%d", name, state);
     auto oldOptions = *m_options;
     if (std::string(name) == "wubi_table_no") {
         if (state == 1) {
@@ -384,28 +384,28 @@ void FunEngine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint 
     if (std::string(name) == "preference") {
         g_spawn_command_line_async("audio_ime_setup", nullptr);
     }
-    LOG_TRACE("Exit");
+    FUN_TRACE("Exit");
 }
-void FunEngine::engine_commit_text(IBusEngine *engine, IBusText *text) {
+void Engine::engine_commit_text(IBusEngine *engine, IBusText *text) {
     ibus_engine_commit_text(engine, text);
     ibus_engine_hide_preedit_text(engine);
     ibus_engine_hide_auxiliary_text(engine);
     m_lookupTable->Clear();
     m_lookupTable->Hide();
 }
-std::string FunEngine::IBusMakeIndicatorMsg(long recordingTime) {
+std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
     std::string msg = "press C-` to toggle record[";
-    SpeechRecognizer::Status status = m_speechRecognizer->GetStatus();
-    if (status == SpeechRecognizer::RECODING) {
+    DictSpeech::Status status = m_speechRecognizer->GetStatus();
+    if (status == DictSpeech::RECODING) {
         msg += "m_recording " + std::to_string(recordingTime);
     }
-    if (status == SpeechRecognizer::WAITING) {
+    if (status == DictSpeech::WAITING) {
         msg += "m_waiting";
     }
     msg += "]";
     return msg;
 }
-void FunEngine::candidateSelected(guint index, bool ignoreText) {
+void Engine::candidateSelected(guint index, bool ignoreText) {
     auto cand = m_lookupTable->GetCandidateGlobal(index);
 
     if (cand.isPinyin) {
@@ -415,10 +415,10 @@ void FunEngine::candidateSelected(guint index, bool ignoreText) {
         } else {
             std::string hint = "五笔[" + code + "]";
             ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(hint.c_str()), true);
-            LOG_INFO("cursor:%d, text:%s, wubi code:%s - %lu", index, cand.text->text, code.c_str(), code.size());
+            FUN_INFO("cursor:%d, text:%s, wubi code:%s - %lu", index, cand.text->text, code.c_str(), code.size());
         }
     } else {
-        LOG_INFO("cursor:%d, text:%s, is not pinyin", index, cand.text->text);
+        FUN_INFO("cursor:%d, text:%s, is not pinyin", index, cand.text->text);
         ibus_engine_hide_auxiliary_text(m_engine);
     }
     if (!ignoreText) { // which means escape
@@ -433,7 +433,7 @@ void FunEngine::candidateSelected(guint index, bool ignoreText) {
 LookupTable::LookupTable(IBusEngine *engine) {
     m_engine = engine;
     m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
-    LOG_INFO("table %p", m_table);
+    FUN_INFO("table %p", m_table);
     g_object_ref_sink(m_table);
 
     ibus_lookup_table_set_round(m_table, true);
@@ -456,13 +456,13 @@ void LookupTable::PageDown() { ibus_lookup_table_page_down(m_table); }
 void LookupTable::CursorDown() {
     bool ret = ibus_lookup_table_cursor_down(m_table);
     if (!ret) {
-        LOG_ERROR("failed to put cursor down");
+        FUN_ERROR("failed to put cursor down");
     }
 }
 void LookupTable::CursorUp() {
     bool ret = ibus_lookup_table_cursor_up(m_table);
     if (!ret) {
-        LOG_ERROR("failed to put cursor up");
+        FUN_ERROR("failed to put cursor up");
     }
 }
 

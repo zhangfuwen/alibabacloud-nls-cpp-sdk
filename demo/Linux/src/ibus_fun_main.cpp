@@ -38,33 +38,33 @@
 #include <utility>
 #include <vector>
 
-#include "FunEngine.h"
-#include "PinyinIME.h"
-#include "SpeechRecognizer.h"
-#include "log.h"
+#include "Engine.h"
+#include "DictPinyin.h"
+#include "DictSpeech.h"
+#include "common_log.h"
 #include "nlsClient.h"
 #include "nlsEvent.h"
 #include "nlsToken.h"
 #include "speechRecognizerRequest.h"
-#include "wubi.h"
-#include "engine.h"
+#include "DictWubi.h"
+#include "ibus_fun_engine.h"
 #include "Config.h"
 #include <functional>
 using namespace std::placeholders;
 IBusBus *g_bus;
-FunEngine *g_engine = nullptr;
+Engine *g_engine = nullptr;
 gint id = 0;
 IBusConfig *g_config = nullptr;
 
 void sigterm_cb(int sig) {
-    LOG_ERROR("sig term %d", sig);
+    FUN_ERROR("sig term %d", sig);
     exit(-1);
 }
 
 static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus, [[maybe_unused]] gpointer user_data) {
-    LOG_TRACE("Entry");
+    FUN_TRACE("Entry");
     ibus_quit();
-    LOG_TRACE("Exit");
+    FUN_TRACE("Exit");
 }
 
 int main([[maybe_unused]] gint argc, gchar **argv) {
@@ -76,21 +76,20 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
     signal(SIGTERM, sigterm_cb);
     signal(SIGINT, sigterm_cb);
     signal(SIGSEGV, signal_handler);
-    log_init();
 
-    LOG_INFO("ibus_init");
+    FUN_INFO("ibus_init");
 
     ibus_init();
     g_bus = ibus_bus_new();
     g_object_ref_sink(g_bus);
 
-    LOG_INFO("ibus %p", g_bus);
+    FUN_INFO("ibus %p", g_bus);
 
     if (!ibus_bus_is_connected(g_bus)) {
-        LOG_WARN("not connected to ibus");
+        FUN_WARN("not connected to ibus");
         exit(0);
     } else {
-        LOG_INFO("ibus connected");
+        FUN_INFO("ibus connected");
     }
 
     Config::init(g_bus, RuntimeOptions::get());
@@ -98,22 +97,22 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
 
     IBusFactory *factory = ibus_factory_new(ibus_bus_get_connection(g_bus));
     g_object_ref_sink(factory);
-    LOG_DEBUG("factory %p", factory);
+    FUN_DEBUG("factory %p", factory);
 
-    LOG_DEBUG("xx");
+    FUN_DEBUG("xx");
     GType type = IBUS_TYPE_FUN_ENGINE;
-    LOG_DEBUG("typename: %s", g_type_name(type));
+    FUN_DEBUG("typename: %s", g_type_name(type));
     ibus_factory_add_engine(factory, "FunEngine", type);
-    LOG_DEBUG("xx");
+    FUN_DEBUG("xx");
 
     IBusComponent *component;
 
     if (g_bus) {
         if (!ibus_bus_request_name(g_bus, "org.freedesktop.IBus.Fun", 0)) {
-            LOG_ERROR("error requesting bus name");
+            FUN_ERROR("error requesting bus name");
             exit(1);
         } else {
-            LOG_INFO("ibus_bus_request_name success");
+            FUN_INFO("ibus_bus_request_name success");
         }
     } else {
         component = ibus_component_new(
@@ -125,7 +124,7 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
             "http://xjbcode.fun/",
             "/usr/bin/ibus-fun --ibus",
             "ibus-fun");
-        LOG_DEBUG("component %p", component);
+        FUN_DEBUG("component %p", component);
         ibus_component_add_engine(
             component,
             ibus_engine_desc_new(
@@ -142,7 +141,7 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
         ibus_bus_set_global_engine_async(g_bus, "FunEgine", -1, nullptr, nullptr, nullptr);
     }
 
-    LOG_INFO("entering ibus main");
+    FUN_INFO("entering ibus main");
     ibus_main();
-    LOG_INFO("exiting ibus main");
+    FUN_INFO("exiting ibus main");
 }

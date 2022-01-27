@@ -6,8 +6,10 @@
 #define AUDIO_IME_CONFIG_H
 #include <ibus.h>
 #include <string>
-#include "log.h"
+#include "common_log.h"
 #include "RuntimeOptions.h"
+#include "common.h"
+
 class Config {
 public:
     static void init(IBusBus *bus, RuntimeOptions * opts) {
@@ -21,13 +23,13 @@ public:
         m_config = ibus_bus_get_config(bus);
         g_object_ref_sink(m_config);
 
-        LOG_DEBUG("ibus config %p", m_config);
+        FUN_DEBUG("ibus config %p", m_config);
         RuntimeOptions::get()->speechAkId = GetString(CONF_NAME_ID);
         RuntimeOptions::get()->speechSecret = GetString(CONF_NAME_SECRET);
         ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_ID);
         ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_SECRET);
         g_signal_connect(m_config, "value-changed", G_CALLBACK(OnValueChanged), this);
-        LOG_INFO("config value-changed signal connected");
+        FUN_INFO("config value-changed signal connected");
     }
     ~Config() {
         g_object_unref(m_config);

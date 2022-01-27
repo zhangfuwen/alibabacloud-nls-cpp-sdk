@@ -1,17 +1,19 @@
 //
 // Created by zhangfuwen on 2022/1/18.
 //
-#include "log.h"
 #include <gtkmm.h>
 #include <gtkmm/window.h>
 #include <ibus.h>
+
+#include "common.h"
+#include "common_log.h"
 
 int main(int argc, char *argv[]) {
     auto app = Gtk::Application::create("org.gtkmm.examples.base");
     auto builder = Gtk::Builder::create_from_file("/usr/share/ibus/ibus-audio/data/ime_setup.glade");
 
-    Gtk::Window *win1;
-    builder->get_widget<Gtk::Window>("win1", win1);
+    Gtk::Window *win;
+    builder->get_widget<Gtk::Window>("win1", win);
     Gtk::Button *but1;
     builder->get_widget<Gtk::Button>("but1", but1);
     Gtk::Label *page1;
@@ -32,11 +34,11 @@ int main(int argc, char *argv[]) {
         auto secret_ustr = secret_text->get_text();
         auto ret = ibus_config_set_value(config, CONF_SECTION, CONF_NAME_ID, g_variant_new_string(id_ustr.c_str()));
         if (!ret) {
-            LOG_INFO("failed to set value");
+            FUN_INFO("failed to set value");
         }
         ret = ibus_config_set_value(config, CONF_SECTION, CONF_NAME_SECRET, g_variant_new_string(secret_ustr.c_str()));
         if (!ret) {
-            LOG_INFO("failed to set value");
+            FUN_INFO("failed to set value");
         }
     });
 
@@ -46,15 +48,15 @@ int main(int argc, char *argv[]) {
         g_bus = ibus_bus_new();
         g_object_ref_sink(g_bus);
 
-        LOG_DEBUG("bus %p", g_bus);
+        FUN_DEBUG("bus %p", g_bus);
 
         if (!ibus_bus_is_connected(g_bus)) {
-            LOG_WARN("not connected to ibus");
+            FUN_WARN("not connected to ibus");
             return;
         }
         config = ibus_bus_get_config(g_bus);
         if (!config) {
-            LOG_ERROR("failed to get config from bus:%p", g_bus);
+            FUN_ERROR("failed to get config from bus:%p", g_bus);
             return;
         } else {
             g_object_ref_sink(config);
@@ -66,10 +68,10 @@ int main(int argc, char *argv[]) {
             if (akId != nullptr) {
                 id_text->set_text(akId);
             } else {
-                LOG_ERROR("failed to get akId");
+                FUN_ERROR("failed to get akId");
             }
         } else {
-            LOG_ERROR("failed to get akId");
+            FUN_ERROR("failed to get akId");
         }
 
         auto secret = ibus_config_get_value(config, CONF_SECTION, CONF_NAME_SECRET);
@@ -78,10 +80,10 @@ int main(int argc, char *argv[]) {
             if (akSecret != nullptr) {
                 secret_text->set_text(akSecret);
             } else {
-                LOG_ERROR("failed to get akSecret");
+                FUN_ERROR("failed to get akSecret");
             }
         } else {
-            LOG_ERROR("failed to get akSecret");
+            FUN_ERROR("failed to get akSecret");
         }
 
         if (config) {
@@ -89,8 +91,8 @@ int main(int argc, char *argv[]) {
         }
         g_object_unref(g_bus);
     });
-    win1->set_title("audio_ime configuration");
+    win->set_title("audio_ime configuration");
 
     // return app->run(*win1, argc, argv);
-    return app->run(*win1, argc, argv);
+    return app->run(*win, argc, argv);
 }
