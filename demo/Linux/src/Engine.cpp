@@ -284,7 +284,7 @@ void Engine::PropertySetup() {
         "pinyin",
         PROP_TYPE_TOGGLE,
         ibus_text_new_from_string(_("label_pinyin")),
-        "audio_ime",
+        "ibus-fun",
         ibus_text_new_from_string("tooltip_pinyin"),
         true,
         true,
@@ -294,7 +294,7 @@ void Engine::PropertySetup() {
         "preference",
         PROP_TYPE_NORMAL,
         ibus_text_new_from_string(_("preference")),
-        "audio_ime",
+        "ibus-fun",
         ibus_text_new_from_string("preference_tool_tip"),
         true,
         true,
@@ -306,7 +306,7 @@ void Engine::PropertySetup() {
         "wubi_table_no",
         PROP_TYPE_RADIO,
         ibus_text_new_from_string(_("label_wubi_table_no")),
-        "audio_ime",
+        "ibus-fun",
         ibus_text_new_from_string("tooltip_wubi_table_no"),
         true,
         true,
@@ -316,7 +316,7 @@ void Engine::PropertySetup() {
         "wubi_table_86",
         PROP_TYPE_RADIO,
         ibus_text_new_from_string(_("label_wubi_table_86")),
-        "audio_ime",
+        "ibus-fun",
         ibus_text_new_from_string("tooltip_wubi_table_86"),
         true,
         true,
@@ -326,7 +326,7 @@ void Engine::PropertySetup() {
         "wubi_table_98",
         PROP_TYPE_RADIO,
         ibus_text_new_from_string(_("label_wubi_table_98")),
-        "audio_ime",
+        "ibus-fun",
         ibus_text_new_from_string("tooltip_wubi_table_98"),
         true,
         true,
@@ -340,7 +340,7 @@ void Engine::PropertySetup() {
         "wubi",
         PROP_TYPE_MENU,
         ibus_text_new_from_string(_("wubi")),
-        "audio_ime",
+        "ibus-fun",
         ibus_text_new_from_string("wubi"),
         true,
         true,
@@ -382,7 +382,7 @@ void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint sta
         Config::getInstance()->SetString(CONF_NAME_PINYIN, m_options->pinyin ? "true" : "false");
     }
     if (std::string(name) == "preference") {
-        g_spawn_command_line_async("audio_ime_setup", nullptr);
+        g_spawn_command_line_async("fun-setup", nullptr);
     }
     FUN_TRACE("Exit");
 }

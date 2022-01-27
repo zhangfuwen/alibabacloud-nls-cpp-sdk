@@ -293,7 +293,7 @@ int DictSpeech::RecognitionRecordAndRequest(ParamStruct *tst) {
 
     FUN_DEBUG("pa_simple_new");
     pa_simple *s =
-        pa_simple_new(nullptr, "audio_ime", PA_STREAM_RECORD, nullptr, "record", &ss, nullptr, nullptr, &error);
+        pa_simple_new(nullptr, "ibus-fun", PA_STREAM_RECORD, nullptr, "record", &ss, nullptr, nullptr, &error);
     /* Create the m_recording stream */
     if (!s) {
         FUN_INFO("pa_simple_new() failed: %s", pa_strerror(error));

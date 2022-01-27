@@ -69,7 +69,7 @@ static void IBusOnDisconnectedCb([[maybe_unused]] IBusBus *bus, [[maybe_unused]]
 
 int main([[maybe_unused]] gint argc, gchar **argv) {
     setlocale(LC_ALL, "");
-    bindtextdomain(GETTEXT_PACKAGE, "/usr/share/ibus/ibus-audio/data/language");
+    bindtextdomain(GETTEXT_PACKAGE, "/usr/share/ibus/ibus-fun/data/language");
     bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
     textdomain(GETTEXT_PACKAGE);
 

@@ -10,7 +10,7 @@
 
 int main(int argc, char *argv[]) {
     auto app = Gtk::Application::create("org.gtkmm.examples.base");
-    auto builder = Gtk::Builder::create_from_file("/usr/share/ibus/ibus-audio/data/ime_setup.glade");
+    auto builder = Gtk::Builder::create_from_file("/usr/share/ibus/ibus-audio/data/ibus_fun_setup.glade");
 
     Gtk::Window *win;
     builder->get_widget<Gtk::Window>("win1", win);
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
         }
         g_object_unref(g_bus);
     });
-    win->set_title("audio_ime configuration");
+    win->set_title("ibus-fun configuration");
 
     // return app->run(*win1, argc, argv);
     return app->run(*win, argc, argv);
