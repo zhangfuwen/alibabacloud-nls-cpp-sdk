@@ -93,7 +93,7 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
         LOG_INFO("ibus connected");
     }
 
-    Config::init(g_bus);
+    Config::init(g_bus, RuntimeOptions::get());
     g_signal_connect(g_bus, "disconnected", G_CALLBACK(IBusOnDisconnectedCb), nullptr);
 
     IBusFactory *factory = ibus_factory_new(ibus_bus_get_connection(g_bus));

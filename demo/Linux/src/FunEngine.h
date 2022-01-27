@@ -100,6 +100,11 @@ public:
     void Disable();
     void FocusIn();
     void FocusOut();
+    void PageUp() { m_lookupTable->PageUp();}
+    void PageDown() { m_lookupTable->PageDown();}
+    void CursorUp() { m_lookupTable->CursorUp();}
+    void CursorDown() { m_lookupTable->CursorDown();}
+    void Reset() { LOG_TRACE(""); }
     void IBusUpdateIndicator(long recordingTime) override;
     void OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state);
     gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);

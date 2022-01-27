@@ -46,14 +46,13 @@ FunEngine::FunEngine(IBusEngine * engine) {
         g_speechRecognizer = new SpeechRecognizer(*this, m_options);
     }
     m_speechRecognizer = g_speechRecognizer;
+    m_lookupTable = new LookupTable(engine);
 }
 
 IBusEngine *FunEngine::getIBusEngine() { return m_engine; }
 FunEngine::~FunEngine() {
+    delete m_lookupTable;
     g_object_unref(m_engine);
-    //    delete m_pinyin;
-    //    delete m_wubi;
-    //    delete m_speechRecognizer;
 }
 void FunEngine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
@@ -265,12 +264,10 @@ void FunEngine::OnCandidateClicked(IBusEngine *engine, guint index, guint button
 void FunEngine::FocusIn() {
     LOG_TRACE("Entry");
     PropertySetup();
-    m_lookupTable = new LookupTable(this->getIBusEngine());
     LOG_TRACE("Exit");
 }
 void FunEngine::FocusOut() {
     LOG_TRACE("Entry");
-    delete m_lookupTable;
     LOG_TRACE("Exit");
 }
 void FunEngine::PropertySetup() {

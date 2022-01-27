@@ -12,6 +12,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
+#include <glib.h>
+#include <string>
+#include <filesystem>
 
 #define CONF_SECTION "engine/audio_ime"
 #define CONF_NAME_ID "access_id"  // no captal letter allowed
@@ -34,32 +37,103 @@ static_assert(filename("file.cpp") == "file.cpp");
     do {                                                                       \
         char buff[40]; \
         time_t log_now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now)); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
+        auto tid = gettid();                                                   \
+        auto gid = getgid();                                                   \
         if(logfd)                                                              \
         {                                                                      \
-            fprintf(logfd, "%s %d %d %s:%d %s > " fmt "\n", buff, getpid(), gettid(), filename(__FILE__).data(),          \
+            fprintf(logfd, "%s %d %d info %s:%d %s > " fmt "\n", buff, gid, tid, filename(__FILE__).data(),          \
                     __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
             fflush(logfd);                                                                       \
         }                                                                       \
-        printf("%s %s:%d %s > " fmt "\n", buff, filename(__FILE__).data(),          \
-                __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
+        g_info("%s %d %d %s:%d %s > " fmt, buff, gid, tid, filename(__FILE__).data(),          \
+           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
-//if (logfd >= 0) {                                                      \
-//    dprintf(logfd, "%s:%d %s > " fmt "\n", filename(__FILE__).data(),  \
-//            __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
-//}                                                                \
 
-#define LOG_DEBUG LOG_INFO
-#define LOG_WARN LOG_INFO
-#define LOG_TRACE LOG_INFO
-#define LOG_ERROR LOG_INFO
+#define LOG_ERROR(fmt, ...)                                                     \
+    do {                                                                       \
+        char buff[40]; \
+        time_t log_now = time(NULL); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
+        auto tid = gettid();                                                   \
+        auto gid = getgid();                                                   \
+        if(logfd)                                                              \
+        {                                                                      \
+            fprintf(logfd, "%s %d %d error %s:%d %s > " fmt "\n", buff, gid, tid, filename(__FILE__).data(),          \
+                    __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
+            fflush(logfd);                                                                       \
+        }                                                                       \
+        g_error("%s %d %d %s:%d %s > " fmt, buff, gid, tid, filename(__FILE__).data(),          \
+           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
+    } while (0)
+
+#define LOG_DEBUG(fmt, ...)                                                     \
+    do {                                                                       \
+        char buff[40]; \
+        time_t log_now = time(NULL); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
+        auto tid = gettid();                                                   \
+        auto gid = getgid();                                                   \
+        if(logfd)                                                              \
+        {                                                                      \
+            fprintf(logfd, "%s %d %d debug %s:%d %s > " fmt "\n", buff, gid, tid, filename(__FILE__).data(),          \
+                    __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
+            fflush(logfd);                                                                       \
+        }                                                                       \
+        g_debug("%s %d %d %s:%d %s > " fmt, buff, gid, tid, filename(__FILE__).data(),          \
+           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
+    } while (0)
+
+#define LOG_WARN(fmt, ...)                                                     \
+    do {                                                                       \
+        char buff[40]; \
+        time_t log_now = time(NULL); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
+        auto tid = gettid();                                                   \
+        auto gid = getgid();                                                   \
+        if(logfd)                                                              \
+        {                                                                      \
+            fprintf(logfd, "%s %d %d warning %s:%d %s > " fmt "\n", buff, gid, tid, filename(__FILE__).data(),          \
+                    __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
+            fflush(logfd);                                                                       \
+        }                                                                       \
+        g_warning("%s %d %d %s:%d %s > " fmt, buff, gid, tid, filename(__FILE__).data(),          \
+           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
+    } while (0)
+
+#define LOG_TRACE(fmt, ...)                                                     \
+    do {                                                                       \
+        char buff[40]; \
+        time_t log_now = time(NULL); \
+        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
+        auto tid = gettid();                                                   \
+        auto gid = getgid();                                                   \
+        if(logfd)                                                              \
+        {                                                                      \
+            fprintf(logfd, "%s %d %d tracing %s:%d %s > " fmt "\n", buff, gid, tid, filename(__FILE__).data(),          \
+                    __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
+            fflush(logfd);                                                                       \
+        }                                                                       \
+        g_debug("%s %d %d %s:%d %s > " fmt, buff, gid, tid, filename(__FILE__).data(),          \
+           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
+    } while (0)
 
 inline FILE * logfd = nullptr;
 inline FILE * dumpfd = nullptr;
 
 inline void log_init() {
-    logfd = fopen("/home/zhangfuwen/audio_ime_log.txt", "a+");
-    dumpfd = fopen("/home/zhangfuwen/audio_ime_dump.txt", "a+");
+    auto home = getenv("XDG_CONFIG_HOME");
+    g_info("home %s", home);
+    std::string base = "/var/log/";
+    if(home != nullptr) {
+        base = std::string(home);
+    }
+    if(!std::filesystem::is_directory(base)) {
+        std::filesystem::create_directory(base);
+    }
+
+    logfd = fopen((base + "/audio_ime_log.txt").c_str(), "a+");
+    dumpfd = fopen((base + "/audio_ime_dump.txt").c_str(), "a+");
 }
 
 static inline void printBacktrace() {
