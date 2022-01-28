@@ -6,6 +6,7 @@
 #define AUDIO_IME_RUNTIMEOPTIONS_H
 
 #include <string>
+#include <ibus.h>
 
 class SpeechRecognizerOptions {
 public:
@@ -21,12 +22,14 @@ public:
         }
         return instance;
     }
-    std::string wubi_table = "";
+    std::string wubi_table;
     bool pinyin = true;
     bool speech = true;
 
     bool capsOn = false;
     bool speechOn = false;
+
+    IBusOrientation lookupTableOrientation = IBUS_ORIENTATION_SYSTEM;
 
     static RuntimeOptions *instance;
 };

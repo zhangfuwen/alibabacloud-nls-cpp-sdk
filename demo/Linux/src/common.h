@@ -20,6 +20,7 @@ struct CandidateAttr {
 #define CONF_NAME_WUBI "wubi_table"
 #define CONF_NAME_PINYIN "pinyin_enable"
 #define CONF_NAME_SPEECH "speech_enable"
+#define CONF_NAME_ORIENTATION "orientation"
 
 #define GETTEXT_PACKAGE "messages"
 

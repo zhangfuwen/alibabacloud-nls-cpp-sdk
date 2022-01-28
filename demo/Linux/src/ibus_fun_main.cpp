@@ -52,9 +52,7 @@
 #include <functional>
 using namespace std::placeholders;
 IBusBus *g_bus;
-Engine *g_engine = nullptr;
 gint id = 0;
-IBusConfig *g_config = nullptr;
 
 void sigterm_cb(int sig) {
     FUN_ERROR("sig term %d", sig);

@@ -92,6 +92,8 @@ target_link_libraries(ibus-fun
     pthread z dl psl brotlidec pulse pulse-simple
     ${IBus_LIBRARIES} ${GLib2_LIBRARIES}
         pinyin)
+set_property(TARGET ibus-fun PROPERTY CXX_STANDARD 20)
+
 message("IBus_LIBRARIES ${IBus_LIBRARIES}")
 message("IBus_VERSION ${IBus_VERSION}")
 message("IBus_INCLUDE_DIRS ${IBus_INCLUDE_DIRS}")

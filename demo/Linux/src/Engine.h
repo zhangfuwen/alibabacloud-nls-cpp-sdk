@@ -48,7 +48,7 @@ class LookupTable {
     std::vector<CandidateAttr> m_candidateAttrs = {};
 
 public:
-    explicit LookupTable(IBusEngine * engine);
+    explicit LookupTable(IBusEngine * engine, IBusOrientation orientation);
     ~LookupTable() ;
     void Append(IBusText *text, bool pinyin);
     void Show();
@@ -59,6 +59,9 @@ public:
     void CursorUp();
     Candidate GetCandidateGlobal(guint globalCursor);
     guint GetGlobalCursor(int index);
+    void setOrientation(IBusOrientation orientation) {
+        ibus_lookup_table_set_orientation(m_table, orientation);
+    }
     void Update();
     void Clear();
 };

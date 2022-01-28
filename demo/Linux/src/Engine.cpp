@@ -43,7 +43,7 @@ Engine::Engine(IBusEngine *engine) {
     m_pinyin = g_pinyin;
 
     m_speechRecognizer = new DictSpeech(this, m_options);
-    m_lookupTable = new LookupTable(engine);
+    m_lookupTable = new LookupTable(engine, m_options->lookupTableOrientation);
     PropertiesInit();
 }
 
@@ -340,6 +340,7 @@ void Engine::UpdateInputMode() {
         }
         FUN_INFO("name:%s, inputMode:%s", name, mode.c_str());
         ibus_property_set_symbol( prop, ibus_text_new_from_string(mode.c_str()));
+        ibus_property_set_label( prop, ibus_text_new_from_string(mode.c_str()));
     } else {
         FUN_ERROR("prop is nullptr");
     }
@@ -352,18 +353,14 @@ void Engine::PropertiesInit() {
     auto prop_list = ibus_prop_list_new();
     auto prop_input_mode = ibus_property_new(
         "InputMode",
-        PROP_TYPE_TOGGLE,
+        PROP_TYPE_NORMAL,
         ibus_text_new_from_string(_("label_input_mode")),
         ICON("ibus-fun.png"),
         ibus_text_new_from_string("tooltip_input_mode"),
-        true,
+        false,
         true,
         PROP_STATE_CHECKED,
         nullptr);
-    //ibus_property_set_symbol(
-     //   prop_input_mode, ibus_text_new_from_string(makeInputMode(m_options->pinyin, m_options->wubi_table).c_str()));
-    ibus_property_set_symbol(
-        prop_input_mode, ibus_text_new_from_string("sdfadf"));
     auto prop_pinyin = ibus_property_new(
         "pinyin",
         PROP_TYPE_TOGGLE,
@@ -376,7 +373,7 @@ void Engine::PropertiesInit() {
         nullptr);
     ibus_property_set_symbol(
         prop_pinyin, ibus_text_new_from_string("ax"));
-    auto prop_speech = ibus_property_new(
+    auto prop_preference = ibus_property_new(
         "preference",
         PROP_TYPE_NORMAL,
         ibus_text_new_from_string(_("preference")),
@@ -432,11 +429,59 @@ void Engine::PropertiesInit() {
         true,
         PROP_STATE_CHECKED,
         wubi_prop_sub_list);
+
+    auto orientation_list = ibus_prop_list_new();
+    auto system = ibus_property_new(
+        "orientation_system",
+        PROP_TYPE_RADIO,
+        ibus_text_new_from_string(_("label_orientation_system")),
+        ICON("ibus-fun.png"),
+        ibus_text_new_from_string(_("tooltip_orientation_system")),
+        true,
+        true,
+        m_options->lookupTableOrientation == IBUS_ORIENTATION_SYSTEM ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    auto horizontal = ibus_property_new(
+        "orientation_horizontal",
+        PROP_TYPE_RADIO,
+        ibus_text_new_from_string(_("label_orientation_horizontal")),
+        ICON("ibus-fun.png"),
+        ibus_text_new_from_string(_("tooltip_orientation_horizontal")),
+        true,
+        true,
+        m_options->lookupTableOrientation == IBUS_ORIENTATION_HORIZONTAL ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    auto vertical = ibus_property_new(
+        "orientation_vertical",
+        PROP_TYPE_RADIO,
+        ibus_text_new_from_string(_("label_orientation_vertical")),
+        ICON("ibus-fun.png"),
+        ibus_text_new_from_string(_("tooltip_orientation_vertical")),
+        true,
+        true,
+        m_options->lookupTableOrientation == IBUS_ORIENTATION_VERTICAL ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        nullptr);
+    ibus_prop_list_append(orientation_list, system);
+    ibus_prop_list_append(orientation_list, horizontal);
+    ibus_prop_list_append(orientation_list, vertical);
+    auto prop_orientation = ibus_property_new(
+        "orientation",
+        PROP_TYPE_MENU,
+        ibus_text_new_from_string(_("label_orientation")),
+        ICON("ibus-fun.png"),
+        ibus_text_new_from_string(_("tooltip_orientation")),
+        true,
+        true,
+        m_options->lookupTableOrientation == IBUS_ORIENTATION_VERTICAL ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
+        orientation_list);
+
+
     g_object_ref_sink(prop_list);
     ibus_prop_list_append(prop_list, prop_input_mode);
     ibus_prop_list_append(prop_list, prop_wubi);
     ibus_prop_list_append(prop_list, prop_pinyin);
-    ibus_prop_list_append(prop_list, prop_speech);
+    ibus_prop_list_append(prop_list, prop_orientation);
+    ibus_prop_list_append(prop_list, prop_preference);
     m_props = prop_list;
 #undef ICON
 }
@@ -445,10 +490,28 @@ void Engine::PropertiesInit() {
 void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state) {
     FUN_TRACE("Entry");
     FUN_INFO("property changed, name:%s, state:%d", name, state);
+    auto n = std::string_view(name);
     if (std::string(name) == "preference") {
         g_spawn_command_line_async("fun-setup", nullptr);
         return;
     }
+
+    if(state == 1 && n.starts_with("orientation")) {
+        if(n.ends_with("vertical")) {
+            m_options->lookupTableOrientation = IBUS_ORIENTATION_VERTICAL;
+            m_lookupTable->setOrientation(m_options->lookupTableOrientation);
+            Config::getInstance()->SetString(CONF_NAME_ORIENTATION, std::to_string(m_options->lookupTableOrientation));
+        } else if(n.ends_with("horizontal")) {
+            m_options->lookupTableOrientation = IBUS_ORIENTATION_HORIZONTAL;
+            m_lookupTable->setOrientation(m_options->lookupTableOrientation);
+            Config::getInstance()->SetString(CONF_NAME_ORIENTATION, std::to_string(m_options->lookupTableOrientation));
+        } else if(n.ends_with("system")) {
+            m_options->lookupTableOrientation = IBUS_ORIENTATION_SYSTEM;
+            m_lookupTable->setOrientation(m_options->lookupTableOrientation);
+            Config::getInstance()->SetString(CONF_NAME_ORIENTATION, std::to_string(m_options->lookupTableOrientation));
+        }
+    }
+
     auto oldOptions = *m_options;
     if (std::string(name) == "wubi_table_no") {
         if (state == 1) {
@@ -521,7 +584,7 @@ void Engine::candidateSelected(guint index, bool ignoreText) {
     ibus_engine_hide_preedit_text(m_engine);
     m_input.clear();
 }
-LookupTable::LookupTable(IBusEngine *engine) {
+LookupTable::LookupTable(IBusEngine *engine, IBusOrientation orientation) {
     m_engine = engine;
     m_table = ibus_lookup_table_new(10, 0, TRUE, TRUE);
     FUN_INFO("table %p", m_table);
@@ -529,7 +592,7 @@ LookupTable::LookupTable(IBusEngine *engine) {
 
     ibus_lookup_table_set_round(m_table, true);
     ibus_lookup_table_set_page_size(m_table, 5);
-    ibus_lookup_table_set_orientation(m_table, IBUS_ORIENTATION_VERTICAL);
+    ibus_lookup_table_set_orientation(m_table, orientation);
 }
 LookupTable::~LookupTable() {
     Clear();

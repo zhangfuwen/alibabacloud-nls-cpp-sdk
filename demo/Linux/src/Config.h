@@ -33,6 +33,14 @@ public:
             SetString(CONF_NAME_PINYIN, pinyin);
         }
         opts->pinyin = (pinyin == "true");
+        auto s = GetString(CONF_NAME_ORIENTATION);
+        opts->lookupTableOrientation = IBUS_ORIENTATION_HORIZONTAL;
+        if(!s.empty()) {
+            auto ret = atoi(s.c_str());
+            if(ret >= 0 && ret <= 2) {
+                opts->lookupTableOrientation = static_cast<IBusOrientation>(ret);
+            }
+        }
         ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_ID);
         ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_SECRET);
         g_signal_connect(m_config, "value-changed", G_CALLBACK(OnValueChanged), this);
