@@ -25,6 +25,9 @@ public:
     bool pinyin = true;
     bool speech = true;
 
+    bool capsOn = false;
+    bool speechOn = false;
+
     static RuntimeOptions *instance;
 };
 

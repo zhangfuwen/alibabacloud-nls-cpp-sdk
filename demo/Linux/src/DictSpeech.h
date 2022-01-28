@@ -35,6 +35,7 @@ public:
         auto ret = RecognitionPrepareAndStartRecording();
         if (ret < 0) {
             m_recording = false;
+            m_speechListerner.OnFailed();
         }
     }
     void Stop() { m_recording = false; }

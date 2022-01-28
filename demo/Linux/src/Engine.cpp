@@ -59,10 +59,14 @@ Engine::~Engine() {
 void Engine::OnCompleted(std::string text) {
     engine_commit_text(m_engine, ibus_text_new_from_string(text.c_str()));
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
+    m_options->speechOn = false;
+    UpdateInputMode();
 }
 void Engine::OnFailed() {
     engine_commit_text(m_engine, ibus_text_new_from_string(""));
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(""), 0, false);
+    m_options->speechOn = false;
+    UpdateInputMode();
 }
 void Engine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
@@ -86,6 +90,8 @@ std::pair<bool, bool> Engine::ProcessSpeech(guint keyval, guint keycode, guint s
         if (status != DictSpeech::RECODING) {
             std::thread t1([&]() { m_speechRecognizer->Start(); });
             t1.detach();
+            m_options->speechOn = true;
+            UpdateInputMode();
         } else {
             m_speechRecognizer->Stop();
         }
@@ -119,9 +125,12 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         }
     }
 
+
     if (state & IBUS_LOCK_MASK) {           // previously chinese mode
         if (keyval == IBUS_KEY_Caps_Lock) { // chinese to english mode
             FUN_INFO("caps lock pressed");
+            m_options->capsOn = false;
+            UpdateInputMode();
             ToggleToEnglishMode();
             return true;
         }
@@ -159,6 +168,11 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         return true;
 
     } else {
+        if (keyval == IBUS_KEY_Caps_Lock) { // english to chinese
+            m_options->capsOn = true;
+            UpdateInputMode();
+        }
+
         // english mode
         m_lookupTable->Hide();
         ibus_engine_hide_preedit_text(m_engine);
@@ -275,7 +289,7 @@ void Engine::FocusOut() {
 
 std::string makeInputMode(bool pinyin, std::string wubi) {
     if (!wubi.empty() && pinyin) {
-        return "wp";
+        return "混";
     }
     if (pinyin) {
         return "拼";
@@ -291,7 +305,14 @@ void Engine::UpdateInputMode() {
     auto prop = ibus_prop_list_get(m_props, 0);
     if(prop != nullptr) {
         auto name = ibus_property_get_key(prop);
-        auto mode = makeInputMode(m_options->pinyin, m_options->wubi_table);
+        std::string mode;
+        if(m_options->speechOn) {
+            mode = "语";
+        } else if(!m_options->capsOn) {
+            mode = "英";
+        } else {
+            mode = makeInputMode(m_options->pinyin, m_options->wubi_table);
+        }
         FUN_INFO("name:%s, inputMode:%s", name, mode.c_str());
         ibus_property_set_symbol( prop, ibus_text_new_from_string(mode.c_str()));
     } else {
