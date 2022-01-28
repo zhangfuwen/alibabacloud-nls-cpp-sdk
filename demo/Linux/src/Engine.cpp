@@ -173,6 +173,10 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         if (keyval == IBUS_KEY_Caps_Lock) { // english to chinese
             m_options->capsOn = true;
             UpdateInputMode();
+        } else {
+            // caps lock off and this key is not caps lock
+            m_options->capsOn = false;
+            UpdateInputMode();
         }
 
         // english mode
