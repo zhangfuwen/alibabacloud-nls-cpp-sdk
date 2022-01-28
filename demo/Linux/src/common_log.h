@@ -29,64 +29,52 @@ static_assert(filename("file.cpp") == "file.cpp");
 
 #define FUN_INFO(fmt, ...)                                                     \
     do {                                                                       \
-        char buff[40]; \
-        time_t log_now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_INFO, "%s %d %d info %s:%d %s > " fmt "\n", buff, pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_INFO, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
-        g_info("%s %d %d %s:%d %s > " fmt, buff, pid, tid, filename(__FILE__).data(),          \
+        g_info("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
 
 #define FUN_ERROR(fmt, ...)                                                     \
     do {                                                                       \
-        char buff[40]; \
-        time_t log_now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_ERROR, "%s %d %d info %s:%d %s > " fmt "\n", buff, pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_ERR, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
+        g_info("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
+           __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
 
 #define FUN_DEBUG(fmt, ...)                                                     \
     do {                                                                       \
-        char buff[40]; \
-        time_t log_now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_DEBUG, "%s %d %d info %s:%d %s > " fmt "\n", buff, pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_DEBUG, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
-        g_debug("%s %d %d %s:%d %s > " fmt, buff, pid, tid, filename(__FILE__).data(),          \
+        g_debug("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
 
 #define FUN_WARN(fmt, ...)                                                     \
     do {                                                                       \
         char buff[40]; \
-        time_t log_now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_WARNING, "%s %d %d info %s:%d %s > " fmt "\n", buff, pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_WARNING, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
-        g_warning("%s %d %d %s:%d %s > " fmt, buff, pid, tid, filename(__FILE__).data(),          \
+        g_warning("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
 
 #define FUN_TRACE(fmt, ...)                                                     \
     do {                                                                       \
-        char buff[40]; \
-        time_t log_now = time(NULL); \
-        strftime(buff, 40, "%Y-%m-%d %H:%M:%S", localtime(&log_now));          \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_DEBUG, "%s %d %d info %s:%d %s > " fmt "\n", buff, pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_DEBUG, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
-        g_debug("%s %d %d %s:%d %s > " fmt, buff, pid, tid, filename(__FILE__).data(),          \
+        g_debug("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
 

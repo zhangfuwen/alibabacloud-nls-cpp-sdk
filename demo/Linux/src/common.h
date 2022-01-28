@@ -23,6 +23,4 @@ struct CandidateAttr {
 
 #define GETTEXT_PACKAGE "messages"
 
-#define _(string) gettext(string)
-
 #endif // AUDIO_IME_COMMON_H
