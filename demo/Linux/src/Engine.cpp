@@ -108,7 +108,7 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
         return FALSE;
     }
 
-    FUN_INFO("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
+    FUN_DEBUG("engine_process_key_event keycode: %d, keyval:%x", keycode, keyval);
 
     if (m_speechRecognizer != nullptr) {
         auto ret = ProcessSpeech(keyval, keycode, state);
@@ -169,7 +169,7 @@ void Engine::WubiPinyinQuery() { // get pinyin candidates
     if (m_options->pinyin) {
         nPinyinCandidates = m_pinyin->Search(m_input);
     }
-    FUN_INFO("num candidates %u for %s", nPinyinCandidates, m_input.c_str());
+    FUN_DEBUG("num candidates %u for %s", nPinyinCandidates, m_input.c_str());
 
     // get wubi candidates
     TrieNode *wubiSubtree = nullptr;
@@ -195,7 +195,7 @@ void Engine::WubiPinyinQuery() { // get pinyin candidates
 
     // wubi and pinyin candidate one after another
     int j = 0;
-    FUN_INFO("map size:%lu", m.size());
+    FUN_DEBUG("map size:%lu", m.size());
     auto it = m.rbegin();
     while (true) {
         if (j >= nPinyinCandidates && it == m.rend()) {
@@ -415,10 +415,10 @@ void Engine::candidateSelected(guint index, bool ignoreText) {
         } else {
             std::string hint = "五笔[" + code + "]";
             ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(hint.c_str()), true);
-            FUN_INFO("cursor:%d, text:%s, wubi code:%s - %lu", index, cand.text->text, code.c_str(), code.size());
+            FUN_DEBUG("cursor:%d, text:%s, wubi code:%s - %lu", index, cand.text->text, code.c_str(), code.size());
         }
     } else {
-        FUN_INFO("cursor:%d, text:%s, is not pinyin", index, cand.text->text);
+        FUN_DEBUG("cursor:%d, text:%s, is not pinyin", index, cand.text->text);
         ibus_engine_hide_auxiliary_text(m_engine);
     }
     if (!ignoreText) { // which means escape

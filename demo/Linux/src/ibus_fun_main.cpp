@@ -99,11 +99,9 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
     g_object_ref_sink(factory);
     FUN_DEBUG("factory %p", factory);
 
-    FUN_DEBUG("xx");
     GType type = IBUS_TYPE_FUN_ENGINE;
     FUN_DEBUG("typename: %s", g_type_name(type));
     ibus_factory_add_engine(factory, "FunEngine", type);
-    FUN_DEBUG("xx");
 
     IBusComponent *component;
 

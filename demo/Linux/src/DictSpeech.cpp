@@ -89,7 +89,7 @@ void DictSpeech::OnRecognitionStarted(AlibabaNls::NlsEvent *cbEvent, void *cbPar
  */
 
 void DictSpeech::OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent, [[maybe_unused]] void *cbParam) {
-    FUN_INFO("result changed");
+    FUN_DEBUG("result changed");
     m_speechListerner.OnPartialResult(cbEvent->getResult());
 }
 
@@ -107,18 +107,18 @@ void DictSpeech::OnRecognitionCompleted(AlibabaNls::NlsEvent *cbEvent, void *cbP
         auto *tmpParam = (ParamCallBack *)cbParam;
         if (!tmpParam->tParam)
             return;
-        FUN_INFO("OnRecognitionCompleted: userId %lu, %s", tmpParam->userId,
+        FUN_DEBUG("OnRecognitionCompleted: userId %lu, %s", tmpParam->userId,
                  tmpParam->userInfo); // 仅表示自定义参数示例
     }
 
-    FUN_INFO("OnRecognitionCompleted: status code:%d, task id:%s, result:%s",
+    FUN_DEBUG("OnRecognitionCompleted: status code:%d, task id:%s, result:%s",
              cbEvent->getStatusCode(), // 获取消息的状态码，成功为0或者20000000，失败时对应失败的错误码
              cbEvent->getTaskId(),  // 当前任务的task id，方便定位问题，建议输出
              cbEvent->getResult()); // 获取中间识别结果
 
     audio_text = cbEvent->getResult();
 
-    FUN_INFO("OnRecognitionCompleted: All response:%s",
+    FUN_DEBUG("OnRecognitionCompleted: All response:%s",
              cbEvent->getAllResponse()); // 获取服务端返回的全部信息
 
     m_waiting = false;
@@ -228,7 +228,7 @@ int DictSpeech::RecognitionRecordAndRequest(ParamStruct *tst) {
     // 设置AppKey, 必填参数, 请参照官网申请
     if (strlen(tst->appkey) > 0) {
         request->setAppKey(tst->appkey);
-        FUN_INFO("setAppKey:%s", tst->appkey);
+        FUN_DEBUG("setAppKey:%s", tst->appkey);
     }
     // 设置音频数据编码格式, 可选参数, 目前支持pcm,opus,opu. 默认是pcm
     request->setFormat("pcm");
@@ -257,7 +257,7 @@ int DictSpeech::RecognitionRecordAndRequest(ParamStruct *tst) {
     // 设置账号校验token, 必填参数
     if (strlen(tst->token) > 0) {
         request->setToken(tst->token);
-        FUN_INFO("setToken:%s", tst->token);
+        FUN_DEBUG("setToken:%s", tst->token);
     }
     if (strlen(tst->url) > 0) {
         FUN_INFO("setUrl:%s", tst->url);

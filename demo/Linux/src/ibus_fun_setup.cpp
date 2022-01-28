@@ -34,11 +34,11 @@ int main(int argc, char *argv[]) {
         auto secret_ustr = secret_text->get_text();
         auto ret = ibus_config_set_value(config, CONF_SECTION, CONF_NAME_ID, g_variant_new_string(id_ustr.c_str()));
         if (!ret) {
-            FUN_INFO("failed to set value");
+            FUN_ERROR("failed to set value");
         }
         ret = ibus_config_set_value(config, CONF_SECTION, CONF_NAME_SECRET, g_variant_new_string(secret_ustr.c_str()));
         if (!ret) {
-            FUN_INFO("failed to set value");
+            FUN_ERROR("failed to set value");
         }
     });
 
