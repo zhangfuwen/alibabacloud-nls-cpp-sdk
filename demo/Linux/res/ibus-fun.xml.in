@@ -6,7 +6,7 @@
     <version>1.0</version>
     <author>zhangfuwen</author>
     <license>MIT</license>
-    <homepage>xx</homepage>
+    <homepage>http://xjbcode.fun</homepage>
     <textdomain>ibus-fun</textdomain>
 
     <engines>
@@ -22,6 +22,7 @@
             <rank>0</rank>
             <setup>fun-setup</setup>
             <symbol>Fun</symbol>
+            <icon_prop_key>InputMode</icon_prop_key>
         </engine>
     </engines>
 </component>

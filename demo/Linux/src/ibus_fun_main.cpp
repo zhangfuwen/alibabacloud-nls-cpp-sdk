@@ -106,6 +106,7 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
     IBusComponent *component;
 
     if (g_bus) {
+        FUN_INFO("gbus valid");
         if (!ibus_bus_request_name(g_bus, "org.freedesktop.IBus.Fun", 0)) {
             FUN_ERROR("error requesting bus name");
             exit(1);
@@ -123,17 +124,29 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
             "/usr/bin/ibus-fun --ibus",
             "ibus-fun");
         FUN_DEBUG("component %p", component);
-        ibus_component_add_engine(
-            component,
-            ibus_engine_desc_new(
-                "FunEngine",
-                "Fun input method",
-                "Fun input method",
-                "zh_CN",
-                "MIT",
-                "zhangfuwen",
-                "/usr/local/share/ibus-fun/ibus-fun.png",
-                "default"));
+        auto desc = ibus_engine_desc_new(
+            "FunEngine",
+            "Fun input method",
+            "Fun input method",
+            "zh_CN",
+            "MIT",
+            "zhangfuwen",
+            "/usr/local/share/ibus-fun/ibus-fun.png",
+            "default");
+        auto symbol = ibus_engine_desc_get_symbol(desc);
+        auto icon_key = ibus_engine_desc_get_icon_prop_key(desc);
+        FUN_INFO("symbol %s, icon_prop_key:%s", symbol, icon_key);
+
+        GValue val;
+        g_value_init(&val, G_TYPE_STRING);
+        g_value_set_string(&val, "pinyin");
+        g_object_set_property(G_OBJECT(desc), "icon_prop_key",&val);
+
+        symbol = ibus_engine_desc_get_symbol(desc);
+        icon_key = ibus_engine_desc_get_icon_prop_key(desc);
+        FUN_INFO("symbol %s, icon_prop_key:%s", symbol, icon_key);
+
+        ibus_component_add_engine(component, desc);
         ibus_bus_register_component(g_bus, component);
 
         ibus_bus_set_global_engine_async(g_bus, "FunEgine", -1, nullptr, nullptr, nullptr);

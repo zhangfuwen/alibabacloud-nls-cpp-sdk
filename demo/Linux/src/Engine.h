@@ -76,6 +76,7 @@ private:
 
     LookupTable *m_lookupTable = nullptr;
     RuntimeOptions * m_options = nullptr;
+    IBusPropList * m_props = nullptr;
 
 
     // early return ?
@@ -84,10 +85,11 @@ private:
     void engine_commit_text(IBusEngine *engine, IBusText *text);
     std::string IBusMakeIndicatorMsg(long recordingTime);
     void candidateSelected(guint index, bool ignoreText = false);
-    void PropertySetup();
+    void UpdateInputMode();
     bool LookupTableNavigate(guint keyval);
     void ToggleToEnglishMode();
     void WubiPinyinQuery();
+    void PropertiesInit();
 
 public:
     explicit Engine(IBusEngine * engine);

@@ -16,11 +16,11 @@
 #include <utility>
 #include <vector>
 
-#include "common.h"
-#include "Engine.h"
-#include "common_log.h"
-#include "DictWubi.h"
 #include "Config.h"
+#include "DictWubi.h"
+#include "Engine.h"
+#include "common.h"
+#include "common_log.h"
 
 using namespace std::placeholders;
 
@@ -28,7 +28,7 @@ Wubi *g_wubi = nullptr;
 pinyin::DictPinyin *g_pinyin = nullptr;
 DictSpeech *g_speechRecognizer = nullptr;
 
-Engine::Engine(IBusEngine * engine) {
+Engine::Engine(IBusEngine *engine) {
     m_options = RuntimeOptions::get();
     m_engine = engine;
     // Setup Lookup table
@@ -47,10 +47,12 @@ Engine::Engine(IBusEngine * engine) {
     }
     m_speechRecognizer = g_speechRecognizer;
     m_lookupTable = new LookupTable(engine);
+    PropertiesInit();
 }
 
 IBusEngine *Engine::getIBusEngine() { return m_engine; }
 Engine::~Engine() {
+    g_object_unref(m_props);
     delete m_lookupTable;
     g_object_unref(m_engine);
 }
@@ -65,8 +67,8 @@ void Engine::OnFailed() {
 void Engine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
 }
-void Engine::Enable() { }
-void Engine::Disable() { }
+void Engine::Enable() {}
+void Engine::Disable() {}
 void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
@@ -263,27 +265,59 @@ void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, g
 
 void Engine::FocusIn() {
     FUN_TRACE("Entry");
-    PropertySetup();
+    ibus_engine_register_properties(m_engine, m_props);
     FUN_TRACE("Exit");
 }
 void Engine::FocusOut() {
     FUN_TRACE("Entry");
     FUN_TRACE("Exit");
 }
-void Engine::PropertySetup() {
-    FUN_TRACE("Entry");
-    RuntimeOptions::get()->wubi_table = Config::getInstance()->GetString(CONF_NAME_WUBI);
-    auto pinyin = Config::getInstance()->GetString(CONF_NAME_PINYIN);
-    if (pinyin.empty()) { // not configured yet
-        pinyin = "true";
-        Config::getInstance()->SetString(CONF_NAME_PINYIN, pinyin);
-    }
 
+std::string makeInputMode(bool pinyin, std::string wubi) {
+    if (!wubi.empty() && pinyin) {
+        return "wp";
+    }
+    if (pinyin) {
+        return "拼";
+    }
+    if (!wubi.empty()) {
+        return "五";
+    }
+    return "X";
+}
+
+void Engine::UpdateInputMode() {
+    FUN_TRACE("Entry");
+    auto prop = ibus_prop_list_get(m_props, 0);
+    if(prop != nullptr) {
+        auto name = ibus_property_get_key(prop);
+        auto mode = makeInputMode(m_options->pinyin, m_options->wubi_table);
+        FUN_INFO("name:%s, inputMode:%s", name, mode.c_str());
+        ibus_property_set_symbol( prop, ibus_text_new_from_string(mode.c_str()));
+    } else {
+        FUN_ERROR("prop is nullptr");
+    }
+    ibus_engine_update_property(m_engine, prop);
+    FUN_TRACE("Exit");
+}
+void Engine::PropertiesInit() {
     std::string iconBase = "/usr/share/icons/hicolor/scalable/apps/";
 #define ICON(name) (iconBase + name).c_str()
-
-    RuntimeOptions::get()->pinyin = (pinyin == "true");
     auto prop_list = ibus_prop_list_new();
+    auto prop_input_mode = ibus_property_new(
+        "InputMode",
+        PROP_TYPE_TOGGLE,
+        ibus_text_new_from_string(_("label_input_mode")),
+        ICON("ibus-fun.png"),
+        ibus_text_new_from_string("tooltip_input_mode"),
+        true,
+        true,
+        PROP_STATE_CHECKED,
+        nullptr);
+    //ibus_property_set_symbol(
+     //   prop_input_mode, ibus_text_new_from_string(makeInputMode(m_options->pinyin, m_options->wubi_table).c_str()));
+    ibus_property_set_symbol(
+        prop_input_mode, ibus_text_new_from_string("sdfadf"));
     auto prop_pinyin = ibus_property_new(
         "pinyin",
         PROP_TYPE_TOGGLE,
@@ -294,6 +328,8 @@ void Engine::PropertySetup() {
         true,
         m_options->pinyin ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED,
         nullptr);
+    ibus_property_set_symbol(
+        prop_pinyin, ibus_text_new_from_string("ax"));
     auto prop_speech = ibus_property_new(
         "preference",
         PROP_TYPE_NORMAL,
@@ -351,18 +387,22 @@ void Engine::PropertySetup() {
         PROP_STATE_CHECKED,
         wubi_prop_sub_list);
     g_object_ref_sink(prop_list);
+    ibus_prop_list_append(prop_list, prop_input_mode);
     ibus_prop_list_append(prop_list, prop_wubi);
     ibus_prop_list_append(prop_list, prop_pinyin);
     ibus_prop_list_append(prop_list, prop_speech);
-    ibus_engine_register_properties(m_engine, prop_list);
+    m_props = prop_list;
 #undef ICON
-    FUN_TRACE("Exit");
 }
 
 // static
 void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state) {
     FUN_TRACE("Entry");
     FUN_INFO("property changed, name:%s, state:%d", name, state);
+    if (std::string(name) == "preference") {
+        g_spawn_command_line_async("fun-setup", nullptr);
+        return;
+    }
     auto oldOptions = *m_options;
     if (std::string(name) == "wubi_table_no") {
         if (state == 1) {
@@ -376,7 +416,7 @@ void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint sta
         if (state == 1) {
             m_options->wubi_table = wubi98DictPath;
         }
-    } else if (std::string(name) == "pinyin_table") {
+    } else if (std::string(name) == "pinyin") {
         m_options->pinyin = state;
     }
     if (m_options->wubi_table != oldOptions.wubi_table) {
@@ -386,9 +426,8 @@ void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint sta
     if (m_options->pinyin != oldOptions.pinyin) {
         Config::getInstance()->SetString(CONF_NAME_PINYIN, m_options->pinyin ? "true" : "false");
     }
-    if (std::string(name) == "preference") {
-        g_spawn_command_line_async("fun-setup", nullptr);
-    }
+    UpdateInputMode();
+
     FUN_TRACE("Exit");
 }
 void Engine::engine_commit_text(IBusEngine *engine, IBusText *text) {

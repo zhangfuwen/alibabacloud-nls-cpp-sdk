@@ -24,8 +24,15 @@ public:
         g_object_ref_sink(m_config);
 
         FUN_DEBUG("ibus config %p", m_config);
-        RuntimeOptions::get()->speechAkId = GetString(CONF_NAME_ID);
-        RuntimeOptions::get()->speechSecret = GetString(CONF_NAME_SECRET);
+        opts->speechAkId = GetString(CONF_NAME_ID);
+        opts->speechSecret = GetString(CONF_NAME_SECRET);
+        opts->wubi_table = GetString(CONF_NAME_WUBI);
+        auto pinyin = GetString(CONF_NAME_PINYIN);
+        if (pinyin.empty()) { // not configured yet
+            pinyin = "true";
+            SetString(CONF_NAME_PINYIN, pinyin);
+        }
+        opts->pinyin = (pinyin == "true");
         ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_ID);
         ibus_config_watch(m_config, CONF_SECTION, CONF_NAME_SECRET);
         g_signal_connect(m_config, "value-changed", G_CALLBACK(OnValueChanged), this);

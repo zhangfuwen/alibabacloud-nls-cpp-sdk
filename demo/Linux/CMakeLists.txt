@@ -92,6 +92,9 @@ target_link_libraries(ibus-fun
     pthread z dl psl brotlidec pulse pulse-simple
     ${IBus_LIBRARIES} ${GLib2_LIBRARIES}
         pinyin)
+message("IBus_LIBRARIES ${IBus_LIBRARIES}")
+message("IBus_VERSION ${IBus_VERSION}")
+message("IBus_INCLUDE_DIRS ${IBus_INCLUDE_DIRS}")
 string(TOLOWER ${CMAKE_BUILD_TYPE} build_type)
 if (build_type STREQUAL release)
     target_compile_definitions(ibus-fun PRIVATE NBUILD)
