@@ -113,34 +113,15 @@ cp $git_root_path/nlsCppSdk/token/include/nlsToken.h $sdk_install_folder/include
 mkdir -p $sdk_install_folder/lib
 cp $build_folder/lib/* $sdk_install_folder/lib/
 
-### 5
-echo "生成DEMO..."
-cd $demo_folder
-cmake ../../demo/Linux
-make
-
 echo "编译结束..."
 
 ### 6
 cd $install_folder
-mkdir -p $sdk_install_folder/demo
 mkdir -p $sdk_install_folder/bin
-cp $git_root_path/demo/Linux/*.cpp $sdk_install_folder/demo
-cp $git_root_path/demo/Linux/build_linux_demo.sh $sdk_install_folder/demo
 cp $git_root_path/version $sdk_install_folder/
 cp $git_root_path/readme.md $sdk_install_folder/
-cp $git_root_path/build/demo/*Demo $sdk_install_folder/bin
 cp -r $git_root_path/resource $sdk_install_folder/demo/
 cur_date=$(date +%Y%m%d%H%M)
-
-rm -rf $sdk_install_folder/tmp
-tar_file=NlsSdk3.X_LINUX_$cur_date
-echo "压缩 " $sdk_install_folder "到" $tar_file".tar.gz"
-tar -zcPf $tar_file".tar.gz" NlsSdk3.X_LINUX
-
-echo "打包结束..."
-
-cp $audio_resource_folder/* $build_folder/demo/
 
 #echo "可以进入demo目录，执行命令[./demo <your appkey> <your AccessKey ID> <your AccessKey Secret>]，运行demo"
 
