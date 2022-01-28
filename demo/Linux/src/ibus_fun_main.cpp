@@ -132,7 +132,7 @@ int main([[maybe_unused]] gint argc, gchar **argv) {
                 "zh_CN",
                 "MIT",
                 "zhangfuwen",
-                "ibus-fun",
+                "/usr/local/share/ibus-fun/ibus-fun.png",
                 "default"));
         ibus_bus_register_component(g_bus, component);
 

@@ -278,13 +278,17 @@ void Engine::PropertySetup() {
         pinyin = "true";
         Config::getInstance()->SetString(CONF_NAME_PINYIN, pinyin);
     }
+
+    std::string iconBase = "/usr/share/icons/hicolor/scalable/apps/";
+#define ICON(name) (iconBase + name).c_str()
+
     RuntimeOptions::get()->pinyin = (pinyin == "true");
     auto prop_list = ibus_prop_list_new();
     auto prop_pinyin = ibus_property_new(
         "pinyin",
         PROP_TYPE_TOGGLE,
         ibus_text_new_from_string(_("label_pinyin")),
-        "ibus-fun",
+        ICON("ibus-fun.png"),
         ibus_text_new_from_string("tooltip_pinyin"),
         true,
         true,
@@ -294,7 +298,7 @@ void Engine::PropertySetup() {
         "preference",
         PROP_TYPE_NORMAL,
         ibus_text_new_from_string(_("preference")),
-        "ibus-fun",
+        ICON("ibus-fun.png"),
         ibus_text_new_from_string("preference_tool_tip"),
         true,
         true,
@@ -306,7 +310,7 @@ void Engine::PropertySetup() {
         "wubi_table_no",
         PROP_TYPE_RADIO,
         ibus_text_new_from_string(_("label_wubi_table_no")),
-        "ibus-fun",
+        ICON("ibus-fun.png"),
         ibus_text_new_from_string("tooltip_wubi_table_no"),
         true,
         true,
@@ -316,7 +320,7 @@ void Engine::PropertySetup() {
         "wubi_table_86",
         PROP_TYPE_RADIO,
         ibus_text_new_from_string(_("label_wubi_table_86")),
-        "ibus-fun",
+        ICON("ibus-fun.png"),
         ibus_text_new_from_string("tooltip_wubi_table_86"),
         true,
         true,
@@ -326,7 +330,7 @@ void Engine::PropertySetup() {
         "wubi_table_98",
         PROP_TYPE_RADIO,
         ibus_text_new_from_string(_("label_wubi_table_98")),
-        "ibus-fun",
+        ICON("ibus-fun.png"),
         ibus_text_new_from_string("tooltip_wubi_table_98"),
         true,
         true,
@@ -340,7 +344,7 @@ void Engine::PropertySetup() {
         "wubi",
         PROP_TYPE_MENU,
         ibus_text_new_from_string(_("wubi")),
-        "ibus-fun",
+        ICON("ibus-fun.png"),
         ibus_text_new_from_string("wubi"),
         true,
         true,
@@ -351,6 +355,7 @@ void Engine::PropertySetup() {
     ibus_prop_list_append(prop_list, prop_pinyin);
     ibus_prop_list_append(prop_list, prop_speech);
     ibus_engine_register_properties(m_engine, prop_list);
+#undef ICON
     FUN_TRACE("Exit");
 }
 

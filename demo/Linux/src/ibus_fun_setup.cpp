@@ -9,8 +9,8 @@
 #include "common_log.h"
 
 int main(int argc, char *argv[]) {
-    auto app = Gtk::Application::create("org.gtkmm.examples.base");
-    auto builder = Gtk::Builder::create_from_file("/usr/share/ibus/ibus-audio/data/ibus_fun_setup.glade");
+    auto app = Gtk::Application::create("fun.xjbcode.ibus-fun.setup");
+    auto builder = Gtk::Builder::create_from_file("/usr/share/ibus/ibus-fun/data/ibus_fun_setup.glade");
 
     Gtk::Window *win;
     builder->get_widget<Gtk::Window>("win1", win);

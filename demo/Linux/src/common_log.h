@@ -41,7 +41,7 @@ static_assert(filename("file.cpp") == "file.cpp");
     do {                                                                       \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_ERR, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_ERR, "%d %d error %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
         g_info("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
@@ -51,7 +51,7 @@ static_assert(filename("file.cpp") == "file.cpp");
     do {                                                                       \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_DEBUG, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_DEBUG, "%d %d debug %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
         g_debug("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
@@ -62,7 +62,7 @@ static_assert(filename("file.cpp") == "file.cpp");
         char buff[40]; \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_WARNING, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_WARNING, "%d %d warn %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
         g_warning("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
@@ -72,11 +72,18 @@ static_assert(filename("file.cpp") == "file.cpp");
     do {                                                                       \
         auto tid = gettid();                                                   \
         auto pid = getpid();                                                   \
-        syslog(LOG_DAEMON | LOG_DEBUG, "%d %d info %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
+        syslog(LOG_DAEMON | LOG_DEBUG, "%d %d trace %s:%d %s > " fmt "\n", pid, tid, filename(__FILE__).data(),          \
                 __LINE__, __FUNCTION__, ##__VA_ARGS__);                     \
         g_debug("%d %d %s:%d %s > " fmt, pid, tid, filename(__FILE__).data(),          \
            __LINE__, __FUNCTION__, ##__VA_ARGS__);                        \
     } while (0)
+
+#ifdef NDEBUG
+#undef FUN_TRACE
+#undef FUN_DEBUG
+#define FUN_DEBUG(fmt, ...)
+#define FUN_TRACE(fmt, ...)
+#endif
 
 static inline void printBacktrace() {
     char buff[40];
@@ -98,5 +105,7 @@ inline void signal_handler(int signo) {
     signal(signo, SIG_DFL);
     raise(signo);
 }
+
+
 
 #endif // AUDIO_IME_COMMON_LOG_H

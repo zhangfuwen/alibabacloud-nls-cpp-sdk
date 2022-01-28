@@ -2,7 +2,7 @@
 <component>
     <name>org.freedesktop.IBus.Fun</name>
     <description>Fun Input method</description>
-    <exec>/usr/bin/ibus-fun --ibus</exec>
+    <exec>@CMAKE_INSTALL_FULL_LIBEXECDIR@/ibus/ibus-fun --ibus</exec>
     <version>1.0</version>
     <author>zhangfuwen</author>
     <license>MIT</license>
@@ -15,13 +15,13 @@
             <language>zh</language>
             <license>MIT</license>
             <author>zhangfuwen</author>
-            <icon>ibus-fun</icon>
+            <icon>@CMAKE_INSTALL_FULL_DATADIR@/ibus-fun/ibus-fun.png</icon>
             <layout>us</layout>
             <longname>Fun Input method</longname>
             <description>Fun Input method</description>
             <rank>0</rank>
             <setup>fun-setup</setup>
-            <custom>xxx</custom>
+            <symbol>Fun</symbol>
         </engine>
     </engines>
 </component>
