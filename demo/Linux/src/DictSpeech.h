@@ -28,14 +28,14 @@ public:
 class DictSpeech {
 public:
     enum Status { IDLE, RECODING, WAITING };
-    explicit DictSpeech(SpeechListener &listener, SpeechRecognizerOptions *opts)
+    explicit DictSpeech(SpeechListener *listener, SpeechRecognizerOptions *opts)
         : m_speechListerner(listener), m_opts(opts) {}
     void Start() {
         m_recording = true;
         auto ret = RecognitionPrepareAndStartRecording();
         if (ret < 0) {
             m_recording = false;
-            m_speechListerner.OnFailed();
+            m_speechListerner->OnFailed();
         }
     }
     void Stop() { m_recording = false; }
@@ -58,7 +58,7 @@ private:
     volatile bool m_recording = false; // currently m_recording user voice
     volatile long recordingTime = 0;   // can only record 60 seconds;
     volatile bool m_waiting = false;   // m_waiting for converted text from internet
-    SpeechListener &m_speechListerner;
+    SpeechListener *m_speechListerner;
     int frame_size = FRAME_100MS;
     int encoder_type = ENCODER_NONE;
     std::string g_token;

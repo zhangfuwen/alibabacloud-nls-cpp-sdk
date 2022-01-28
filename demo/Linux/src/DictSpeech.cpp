@@ -90,7 +90,7 @@ void DictSpeech::OnRecognitionStarted(AlibabaNls::NlsEvent *cbEvent, void *cbPar
 
 void DictSpeech::OnRecognitionResultChanged(AlibabaNls::NlsEvent *cbEvent, [[maybe_unused]] void *cbParam) {
     FUN_DEBUG("result changed");
-    m_speechListerner.OnPartialResult(cbEvent->getResult());
+    m_speechListerner->OnPartialResult(cbEvent->getResult());
 }
 
 /**
@@ -123,7 +123,7 @@ void DictSpeech::OnRecognitionCompleted(AlibabaNls::NlsEvent *cbEvent, void *cbP
 
     m_waiting = false;
     m_recording = false;
-    m_speechListerner.OnCompleted(audio_text);
+    m_speechListerner->OnCompleted(audio_text);
 }
 
 /**
@@ -150,7 +150,7 @@ void DictSpeech::OnRecognitionTaskFailed(AlibabaNls::NlsEvent *cbEvent, void *cb
     FUN_INFO("OnRecognitionTaskFailed: All response:%s",
              cbEvent->getAllResponse()); // 获取服务端返回的全部信息
     m_waiting = false;
-    m_speechListerner.OnFailed();
+    m_speechListerner->OnFailed();
 }
 
 /**
@@ -309,7 +309,7 @@ int DictSpeech::RecognitionRecordAndRequest(ParamStruct *tst) {
         gettimeofday(&y, nullptr);
         auto newRecordingTime = y.tv_sec - x.tv_sec;
         if (newRecordingTime - recordingTime >= 1) {
-            m_speechListerner.IBusUpdateIndicator(recordingTime);
+            m_speechListerner->IBusUpdateIndicator(recordingTime);
         }
         recordingTime = newRecordingTime;
         if (recordingTime > 59) {

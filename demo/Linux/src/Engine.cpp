@@ -26,7 +26,6 @@ using namespace std::placeholders;
 
 Wubi *g_wubi = nullptr;
 pinyin::DictPinyin *g_pinyin = nullptr;
-DictSpeech *g_speechRecognizer = nullptr;
 
 Engine::Engine(IBusEngine *engine) {
     m_options = RuntimeOptions::get();
@@ -42,10 +41,7 @@ Engine::Engine(IBusEngine *engine) {
     }
     m_pinyin = g_pinyin;
 
-    if (!g_speechRecognizer) {
-        g_speechRecognizer = new DictSpeech(*this, m_options);
-    }
-    m_speechRecognizer = g_speechRecognizer;
+    m_speechRecognizer = new DictSpeech(this, m_options);
     m_lookupTable = new LookupTable(engine);
     PropertiesInit();
 }
