@@ -87,9 +87,10 @@ private:
     void candidateSelected(guint index, bool ignoreText = false);
     void UpdateInputMode();
     bool LookupTableNavigate(guint keyval);
-    void ToggleToEnglishMode();
+    void Clear();
     void WubiPinyinQuery();
     void PropertiesInit();
+    void SwitchWubi();
 
 public:
     explicit Engine(IBusEngine * engine);
@@ -111,6 +112,7 @@ public:
     void OnPropertyActivate(IBusEngine *engine, const gchar *name, guint state);
     gboolean ProcessKeyEvent(guint keyval, guint keycode, guint state);
     void OnCandidateClicked(IBusEngine *engine, guint index, guint button, guint state);
+
 };
 
 #endif // AUDIO_IME_ENGINE_H

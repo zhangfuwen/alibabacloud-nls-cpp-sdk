@@ -28,6 +28,7 @@ Wubi *g_wubi = nullptr;
 pinyin::DictPinyin *g_pinyin = nullptr;
 
 Engine::Engine(IBusEngine *engine) {
+    FUN_INFO("constructor");
     m_options = RuntimeOptions::get();
     m_engine = engine;
     // Setup Lookup table
@@ -48,6 +49,7 @@ Engine::Engine(IBusEngine *engine) {
 
 IBusEngine *Engine::getIBusEngine() { return m_engine; }
 Engine::~Engine() {
+    FUN_INFO("destructor");
     g_object_unref(m_props);
     delete m_lookupTable;
     g_object_unref(m_engine);
@@ -67,8 +69,12 @@ void Engine::OnFailed() {
 void Engine::OnPartialResult(std::string text) {
     ibus_engine_update_preedit_text(m_engine, ibus_text_new_from_string(text.c_str()), 0, TRUE);
 }
-void Engine::Enable() {}
-void Engine::Disable() {}
+void Engine::Enable() {
+   FUN_TRACE("") ;
+}
+void Engine::Disable() {
+    FUN_TRACE("") ;
+}
 void Engine::IBusUpdateIndicator(long recordingTime) {
     ibus_engine_update_auxiliary_text(
         m_engine, ibus_text_new_from_string(IBusMakeIndicatorMsg(recordingTime).c_str()), TRUE);
@@ -127,7 +133,7 @@ gboolean Engine::ProcessKeyEvent(guint keyval, guint keycode, guint state) {
             FUN_INFO("caps lock pressed");
             m_options->capsOn = false;
             UpdateInputMode();
-            ToggleToEnglishMode();
+            Clear();
             return true;
         }
 
@@ -185,7 +191,7 @@ void Engine::WubiPinyinQuery() { // get pinyin candidates
 
     // get wubi candidates
     TrieNode *wubiSubtree = nullptr;
-    if (!m_options->wubi_table.empty()) { // no searching , no data
+    if (!m_options->wubi_table.empty() && m_wubi) { // no searching , no data
         wubiSubtree = m_wubi->Search(m_input);
     }
     map<uint64_t, string> m;
@@ -233,7 +239,7 @@ void Engine::WubiPinyinQuery() { // get pinyin candidates
         }
     }
 }
-void Engine::ToggleToEnglishMode() { // commit input as english
+void Engine::Clear() { // commit input as english
     engine_commit_text(getIBusEngine(), ibus_text_new_from_string(m_input.c_str()));
     m_input = "";
     m_lookupTable->Clear();
@@ -241,6 +247,24 @@ void Engine::ToggleToEnglishMode() { // commit input as english
     ibus_engine_update_auxiliary_text(m_engine, ibus_text_new_from_string(""), true);
     ibus_engine_hide_preedit_text(m_engine);
     ibus_engine_hide_auxiliary_text(m_engine);
+}
+
+void Engine::SwitchWubi() {
+    FUN_INFO("Switch wubi table");
+    Clear();
+    m_wubi = nullptr;
+    delete g_wubi;
+    g_wubi = nullptr;
+    std::thread([&]() {
+        g_object_ref(m_engine);
+        // keep engine not destructed
+        if(!m_options->wubi_table.empty()) {
+            g_wubi = new Wubi(m_options->wubi_table);
+        }
+        m_wubi = g_wubi;
+        FUN_INFO("done switching wubi table to [%s]", m_options->wubi_table.c_str());
+        g_object_unref(m_engine);
+    }).detach();
 }
 bool Engine::LookupTableNavigate(guint keyval) {
     bool return1 = false;
@@ -439,6 +463,7 @@ void Engine::OnPropertyActivate(IBusEngine *engine, const gchar *name, guint sta
     }
     if (m_options->wubi_table != oldOptions.wubi_table) {
         Config::getInstance()->SetString(CONF_NAME_WUBI, m_options->wubi_table);
+        SwitchWubi();
     }
 
     if (m_options->pinyin != oldOptions.pinyin) {
@@ -470,7 +495,7 @@ std::string Engine::IBusMakeIndicatorMsg(long recordingTime) {
 void Engine::candidateSelected(guint index, bool ignoreText) {
     auto cand = m_lookupTable->GetCandidateGlobal(index);
 
-    if (cand.isPinyin) {
+    if (cand.isPinyin && m_wubi) {
         std::string code = m_wubi->CodeSearch(cand.text->text);
         if (code.empty()) {
             ibus_engine_hide_auxiliary_text(m_engine);
