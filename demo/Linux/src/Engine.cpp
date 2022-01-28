@@ -276,6 +276,7 @@ void Engine::OnCandidateClicked(IBusEngine *engine, guint index, guint button, g
 void Engine::FocusIn() {
     FUN_TRACE("Entry");
     ibus_engine_register_properties(m_engine, m_props);
+    UpdateInputMode();
     FUN_TRACE("Exit");
 }
 void Engine::FocusOut() {
